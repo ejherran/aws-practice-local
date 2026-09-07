@@ -29,13 +29,16 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(len(digest), 64)
 
     def test_bundled_bank_all_bilingual_content(self):
-        m, q, s, _ = read_archive((ROOT / 'banks/aws-clf-c02-3.0.0.zip').read_bytes())
-        self.assertEqual(len(q), 260)
-        self.assertEqual(sum(len(x['options']) for x in q), 1093)
-        self.assertEqual(sum(x['select_count'] == 2 for x in q), 53)
+        m, q, s, _ = read_archive((ROOT / 'banks/aws-clf-c02-4.0.0.zip').read_bytes())
+        self.assertEqual(m['version'], '4.0.0')
+        self.assertEqual(m['schema_version'], 2)
+        self.assertEqual(len(q), 310)
+        self.assertEqual(sum(len(x['options']) for x in q), 1308)
+        self.assertEqual(sum(x['select_count'] == 2 for x in q), 68)
         self.assertEqual(m['languages'], ['en', 'es'])
         self.assertEqual(s['quiz']['duration_seconds'], 831)
         self.assertEqual(s['exam']['unscored_count'], 15)
+        self.assertEqual(s['rush'], {'question_count': 10, 'duration_seconds': 600})
         for question in q:
             if question['select_count'] > 1:
                 self.assertIn('TWO', question['prompt']['en'])

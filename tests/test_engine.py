@@ -22,7 +22,7 @@ class EngineTests(Fixture):
         self.assertEqual(self.finish(a)['result']['scored_total'], 8)
 
     def test_cloud_practitioner_real_length(self):
-        self.banks.import_archive((ROOT / 'banks/aws-clf-c02-3.0.0.zip').read_bytes(), 1)
+        self.banks.import_archive((ROOT / 'banks/aws-clf-c02-4.0.0.zip').read_bytes(), 1)
         a = self.engine.create(2, 'aws-clf-c02', 'exam')
         self.assertEqual(a['total'], 65)
         self.assertEqual(a['duration'], 5400)

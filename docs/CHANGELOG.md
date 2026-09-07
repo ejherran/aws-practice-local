@@ -1,5 +1,17 @@
 # Version 4.0.0 — RUSH
 
+## Cloud Practitioner content update
+
+- Updated the bundled `aws-clf-c02` starter bank from content version 3.0.0 to
+  4.0.0, with 310 bilingual questions: 50 new items and 12 targeted revisions.
+- Updated the bank contract to schema v2 with explicit RUSH defaults while
+  preserving the 65-question exam, 15 unscored items and proportional quiz
+  timing defaults.
+- Preserved the 260 existing question IDs and added Q261 through Q310. The bank
+  reports a September 6, 2026 research cut-off and references official AWS
+  resources; automated validation is not an independent subject-matter or
+  psychometric review.
+
 - Added sequential consecutive-answer challenges, default 10 answers / 600 seconds.
 - Added explicit confirmation, immediate failed-answer correction, automatic
   full-set regeneration, persistent feedback, and a single authoritative clock.
@@ -12,7 +24,6 @@
 - Added stopped-server v3 upgrade support and storage marker 4.
 - Corrected narrow admin navigation wrapping and removed success overlays from
   RUSH question/feedback screens. Success uses a nonblocking live announcement.
-- Retained the original 260-question bilingual archive without content changes.
 
 ## Earlier releases
 

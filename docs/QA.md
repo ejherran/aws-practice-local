@@ -32,8 +32,8 @@ parity, archive validation and authoring-kit checks, plus:
 - Contract v2 defaults and exports, unchanged v1 import support, rejected mixed
   contracts, portable authoring-kit synchronization, and v3 storage upgrades.
 
-Python compilation and JavaScript syntax checks passed. Both the unchanged
-260-question bilingual starter ZIP and the four-question contract-v2 example
+Python compilation and JavaScript syntax checks passed. Both the current
+310-question bilingual starter ZIP and the four-question contract-v2 example
 validate with `python3 -S app.py --validate-bank ...`.
 
 `test-results.txt` records the final suite output. The release is also extracted
@@ -106,8 +106,9 @@ question. Very large banks, unusually large goals, very long limits or many
 restarts can increase database size and report-rendering cost; no high-volume
 stress benchmark is claimed.
 
-The 260-question bilingual bank is unchanged from v3. This feature release did
-not perform a new factual review of its references or an official difficulty
-calibration. Bank validation establishes structure and answer consistency, not
-subject-matter infallibility. The application remains independent practice
-software, not an official exam system.
+The 310-question bilingual bank reports a September 6, 2026 research cut-off,
+50 new items and 12 targeted revisions from content version 3.0.0. Repository
+validation establishes structure and answer consistency; it does not constitute
+an independent factual review, psychometric calibration or official difficulty
+assessment. The application remains independent practice software, not an
+official exam system.

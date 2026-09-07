@@ -69,10 +69,10 @@ audit log or export full question banks through the API.
 
 ## Practice and results
 
-The included `aws-clf-c02` bank has **260 original questions**, each available
+The included `aws-clf-c02` bank has **310 original questions**, each available
 in English and Spanish, including all options, general explanations, every
-option explanation and applicable notes. It has 207 single-answer questions
-and 53 questions requiring exactly two answers. It is independent practice
+option explanation and applicable notes. It has 242 single-answer questions
+and 68 questions requiring exactly two answers. It is independent practice
 material, not an official AWS exam or an exam dump.
 
 Initial Cloud Practitioner formats:
@@ -229,7 +229,7 @@ editing the SQLite database or overwriting application source files.
 Contract v2 adds optional `defaults.rush` with `question_count` and
 `duration_seconds`. The app still imports unchanged contract-v1 banks, applying
 RUSH defaults automatically. Bank exports use v2 and retain the content version;
-the bundled 260-question bank remains its unchanged v1 / content 3.0.0 archive.
+the bundled 310-question bank uses contract v2 / content version 4.0.0.
 The updated authoring kit documents both contracts. V2 banks require engine 4+.
 
 

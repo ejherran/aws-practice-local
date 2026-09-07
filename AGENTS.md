@@ -131,7 +131,7 @@ Run from the repository root:
 ```bash
 python3 -m unittest discover -s tests -v
 python3 -m compileall -q app.py trainer tests
-python3 app.py --validate-bank banks/aws-clf-c02-3.0.0.zip
+python3 app.py --validate-bank banks/aws-clf-c02-4.0.0.zip
 python3 app.py --validate-bank docs/example-bank.zip
 ```
 

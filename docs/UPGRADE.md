@@ -40,7 +40,9 @@ Legacy schema-v1 bank ZIPs still import without edits. RUSH defaults are 10
 questions (or bank size when smaller) and 600 seconds. Explicit RUSH settings in
 bank files use contract v2; newly exported banks and the updated authoring kit
 use that contract. App v3 cannot import contract-v2 exports. Content versions
-and the unchanged bundled `aws-clf-c02-3.0.0.zip` are independent of app versions.
+and the bundled `aws-clf-c02-4.0.0.zip` are independent of app versions. Existing
+installations do not automatically import a newer starter bank; use the
+administrator bank-import workflow to install content updates.
 
 Only local LAN connectivity is required. No migration downloads, package
 installation, cloud services or network calls are made.
