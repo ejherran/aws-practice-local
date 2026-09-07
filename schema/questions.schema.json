@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:aws-practice-local:bank-questions:1",
+  "title": "Question bank questions (contract version 1)",
+  "type": "array",
+  "minItems": 1,
+  "maxItems": 5000,
+  "items": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$"
+      },
+      "domain_id": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$"
+      },
+      "task_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80
+      },
+      "select_count": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 9
+      },
+      "prompt": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "es": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          }
+        },
+        "additionalProperties": false
+      },
+      "explanation": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "es": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          }
+        },
+        "additionalProperties": false
+      },
+      "options": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 10,
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$"
+            },
+            "text": {
+              "type": "object",
+              "minProperties": 1,
+              "properties": {
+                "en": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20000
+                },
+                "es": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20000
+                }
+              },
+              "additionalProperties": false
+            },
+            "explanation": {
+              "type": "object",
+              "minProperties": 1,
+              "properties": {
+                "en": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20000
+                },
+                "es": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20000
+                }
+              },
+              "additionalProperties": false
+            },
+            "correct": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "text",
+            "explanation",
+            "correct"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "references": {
+        "type": "array",
+        "maxItems": 20,
+        "items": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$"
+        }
+      },
+      "notes": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "es": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "id",
+      "domain_id",
+      "select_count",
+      "prompt",
+      "explanation",
+      "options",
+      "references"
+    ],
+    "additionalProperties": false
+  }
+}

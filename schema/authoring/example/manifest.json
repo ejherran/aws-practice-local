@@ -1,0 +1,90 @@
+{
+  "schema_version": 2,
+  "bank_id": "example-cert",
+  "version": "1.0.0",
+  "exam_code": "EXAMPLE",
+  "title": {
+    "en": "Bank authoring example",
+    "es": "Ejemplo de creación de bancos"
+  },
+  "description": {
+    "en": "Four illustrative questions demonstrating the ZIP contract. Not a complete certification preparation bank. Replace all example content before publishing your own bank.",
+    "es": "Cuatro preguntas ilustrativas del contrato ZIP. No es un banco completo de preparación. Reemplaza el contenido de ejemplo antes de publicar tu propio banco."
+  },
+  "languages": [
+    "en",
+    "es"
+  ],
+  "default_language": "es",
+  "domains": [
+    {
+      "id": "1",
+      "name": {
+        "en": "Cloud concepts",
+        "es": "Conceptos de la nube"
+      }
+    },
+    {
+      "id": "2",
+      "name": {
+        "en": "Security and compliance",
+        "es": "Seguridad y cumplimiento"
+      }
+    }
+  ],
+  "defaults": {
+    "quiz": {
+      "question_count": 2,
+      "duration_seconds": 120,
+      "unscored_count": 0,
+      "time_mode": "proportional",
+      "target_percentage": 80
+    },
+    "exam": {
+      "question_count": 4,
+      "duration_seconds": 240,
+      "unscored_count": 1,
+      "time_mode": "fixed",
+      "target_percentage": 80
+    },
+    "domain_weights": {
+      "1": 50,
+      "2": 50
+    },
+    "rush": {
+      "question_count": 3,
+      "duration_seconds": 180
+    }
+  },
+  "references": {
+    "ventajas": {
+      "title": {
+        "en": "Advantages of cloud computing",
+        "es": "Ventajas de la computación en la nube"
+      },
+      "url": "https://docs.aws.amazon.com/whitepapers/latest/aws-overview/six-advantages-of-cloud-computing.html"
+    },
+    "shared": {
+      "title": {
+        "en": "Shared responsibility model",
+        "es": "Modelo de responsabilidad compartida"
+      },
+      "url": "https://aws.amazon.com/compliance/shared-responsibility-model/"
+    },
+    "lambda_security": {
+      "title": {
+        "en": "Lambda runtime update responsibilities",
+        "es": "Responsabilidades de actualización de runtimes de Lambda"
+      },
+      "url": "https://docs.aws.amazon.com/lambda/latest/dg/runtime-management-shared.html"
+    },
+    "autoscaling": {
+      "title": {
+        "en": "Amazon EC2 Auto Scaling",
+        "es": "Amazon EC2 Auto Scaling"
+      },
+      "url": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html"
+    }
+  },
+  "content_updated_at": "2026-09-06"
+}

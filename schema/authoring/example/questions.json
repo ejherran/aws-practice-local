@@ -1,0 +1,270 @@
+[
+  {
+    "id": "Q001",
+    "domain_id": "1",
+    "task_id": "1.1",
+    "select_count": 1,
+    "prompt": {
+      "en": "A team waits six weeks for servers to test new ideas. After adopting AWS, it can create a test environment in minutes and delete it when finished. Which benefit primarily explains the shorter time needed to experiment?",
+      "es": "Un equipo tarda seis semanas en recibir servidores para probar nuevas ideas. Al adoptar AWS puede crear un entorno de prueba en minutos y eliminarlo cuando termina. ¿Qué beneficio explica principalmente la reducción del tiempo para experimentar?"
+    },
+    "explanation": {
+      "en": "Agility shortens the path from an idea to its validation. It differs from adjusting running capacity or surviving failures.",
+      "es": "La agilidad reduce el tiempo entre una idea y su validación. No debe confundirse con ajustar capacidad durante la ejecución ni con resistir fallos."
+    },
+    "options": [
+      {
+        "id": "A",
+        "text": {
+          "en": "High availability.",
+          "es": "Alta disponibilidad."
+        },
+        "explanation": {
+          "en": "Keeps a service accessible during disruptions.",
+          "es": "Busca mantener accesible un servicio ante interrupciones."
+        },
+        "correct": false
+      },
+      {
+        "id": "B",
+        "text": {
+          "en": "Agility.",
+          "es": "Agilidad."
+        },
+        "explanation": {
+          "en": "Enables rapid provisioning of resources for experiments.",
+          "es": "Permite aprovisionar rápidamente los recursos necesarios para experimentar."
+        },
+        "correct": true
+      },
+      {
+        "id": "C",
+        "text": {
+          "en": "Elasticity.",
+          "es": "Elasticidad."
+        },
+        "explanation": {
+          "en": "Expands and contracts capacity with demand, rather than describing how quickly an experiment can begin.",
+          "es": "Describe aumentar y reducir capacidad con la demanda, no el plazo para iniciar una prueba."
+        },
+        "correct": false
+      },
+      {
+        "id": "D",
+        "text": {
+          "en": "Economies of scale.",
+          "es": "Economías de escala."
+        },
+        "explanation": {
+          "en": "Explain the provider's cost efficiencies, not the speed of experimentation.",
+          "es": "Explican eficiencias económicas del proveedor, no la rapidez del experimento."
+        },
+        "correct": false
+      }
+    ],
+    "references": [
+      "ventajas"
+    ]
+  },
+  {
+    "id": "Q004",
+    "domain_id": "1",
+    "task_id": "1.1",
+    "select_count": 1,
+    "prompt": {
+      "en": "To handle more requests, an application keeps the same server size but increases from two EC2 instances to six. Which type of scaling is this?",
+      "es": "Para atender más solicitudes, una aplicación conserva el tamaño de sus servidores y pasa de dos instancias EC2 a seis. ¿Qué tipo de escalado aplica?"
+    },
+    "explanation": {
+      "en": "Horizontal scaling changes the number of instances. Vertical scaling changes the capacity of an individual instance.",
+      "es": "El escalado horizontal cambia la cantidad de instancias. El vertical cambia la capacidad de cada instancia."
+    },
+    "options": [
+      {
+        "id": "A",
+        "text": {
+          "en": "Horizontal scaling out.",
+          "es": "Escalado horizontal hacia afuera."
+        },
+        "explanation": {
+          "en": "Adds instances to share the workload.",
+          "es": "Se añaden instancias del mismo tamaño para repartir la carga."
+        },
+        "correct": true
+      },
+      {
+        "id": "B",
+        "text": {
+          "en": "Vertical scaling down.",
+          "es": "Escalado vertical hacia abajo."
+        },
+        "explanation": {
+          "en": "Reduces resources per instance, which is not the described change.",
+          "es": "Reduce recursos por instancia, lo contrario del cambio descrito."
+        },
+        "correct": false
+      },
+      {
+        "id": "C",
+        "text": {
+          "en": "Vertical scaling up.",
+          "es": "Escalado vertical hacia arriba."
+        },
+        "explanation": {
+          "en": "Adds CPU or memory per instance rather than adding instances.",
+          "es": "Implicaría más CPU o memoria por instancia, no más instancias."
+        },
+        "correct": false
+      },
+      {
+        "id": "D",
+        "text": {
+          "en": "Horizontal scaling in.",
+          "es": "Escalado horizontal hacia adentro."
+        },
+        "explanation": {
+          "en": "Removes instances instead of adding them.",
+          "es": "Reduce la cantidad de instancias en lugar de aumentarla."
+        },
+        "correct": false
+      }
+    ],
+    "references": [
+      "autoscaling"
+    ]
+  },
+  {
+    "id": "Q066",
+    "domain_id": "2",
+    "task_id": "2.1",
+    "select_count": 1,
+    "prompt": {
+      "en": "A Lambda function uses a managed runtime, but its deployment package includes a library added by the team. A vulnerability is discovered in that library. Who must update it in the package?",
+      "es": "Una función Lambda utiliza un runtime administrado, pero su paquete incluye una biblioteca que el equipo añadió. Se descubre una vulnerabilidad en esa biblioteca. ¿Quién debe actualizarla dentro del paquete?"
+    },
+    "explanation": {
+      "en": "AWS maintains the managed platform; customers remain responsible for their code and bundled dependencies. Lambda does not transfer ownership of all software maintenance.",
+      "es": "AWS mantiene la plataforma administrada; el cliente conserva la responsabilidad sobre su código y las dependencias que incorpora. Usar Lambda no transfiere todo el software a AWS."
+    },
+    "options": [
+      {
+        "id": "A",
+        "text": {
+          "en": "The team maintaining the function package.",
+          "es": "El equipo que mantiene el paquete de la función."
+        },
+        "explanation": {
+          "en": "Owns the added dependency and must update it.",
+          "es": "La biblioteca forma parte del código y las dependencias del cliente."
+        },
+        "correct": true
+      },
+      {
+        "id": "B",
+        "text": {
+          "en": "The team only if the function runs inside a VPC.",
+          "es": "El equipo solamente si la función está dentro de una VPC."
+        },
+        "explanation": {
+          "en": "Networking configuration does not change dependency ownership.",
+          "es": "La ubicación de red no cambia quién mantiene el paquete."
+        },
+        "correct": false
+      },
+      {
+        "id": "C",
+        "text": {
+          "en": "AWS, because runtime updates replace every packaged dependency.",
+          "es": "AWS, porque actualizar el runtime reemplaza cualquier dependencia del paquete."
+        },
+        "explanation": {
+          "en": "Bundled dependencies are not automatically replaced by runtime updates.",
+          "es": "Una actualización del runtime no garantiza actualizar bibliotecas incorporadas por el cliente."
+        },
+        "correct": false
+      },
+      {
+        "id": "D",
+        "text": {
+          "en": "AWS, if the function has an execution role.",
+          "es": "AWS, si la función tiene asignado un rol de ejecución."
+        },
+        "explanation": {
+          "en": "An execution role supplies permissions, not application maintenance.",
+          "es": "El rol concede permisos; no modifica la responsabilidad sobre dependencias."
+        },
+        "correct": false
+      }
+    ],
+    "references": [
+      "lambda_security"
+    ]
+  },
+  {
+    "id": "Q075",
+    "domain_id": "2",
+    "task_id": "2.1",
+    "select_count": 1,
+    "prompt": {
+      "en": "A team summarizes shared responsibility for an EC2 application. Which assignment correctly distinguishes security of the cloud from security in the cloud?",
+      "es": "Un equipo resume la responsabilidad compartida para una aplicación en EC2. ¿Qué asignación distingue correctamente seguridad «de» la nube y seguridad «en» la nube?"
+    },
+    "explanation": {
+      "en": "AWS protects the infrastructure it provides. Customers protect the configuration and software they operate on it; the boundary depends on the service.",
+      "es": "AWS protege la infraestructura que ofrece; el cliente protege la configuración y el software que opera sobre ella. El alcance depende del servicio utilizado."
+    },
+    "options": [
+      {
+        "id": "A",
+        "text": {
+          "en": "AWS and customers equally administer every instance's guest OS.",
+          "es": "AWS y el cliente comparten por igual la administración del sistema invitado de toda instancia."
+        },
+        "explanation": {
+          "en": "Conventional EC2 guest OS administration belongs to the customer.",
+          "es": "EC2 convencional no establece esa administración conjunta universal."
+        },
+        "correct": false
+      },
+      {
+        "id": "B",
+        "text": {
+          "en": "AWS protects physical and virtualization infrastructure; customers protect their guest OS, application and access.",
+          "es": "AWS protege la infraestructura física y de virtualización; el cliente protege su sistema invitado, aplicación y accesos."
+        },
+        "explanation": {
+          "en": "Correctly separates the responsibility layers.",
+          "es": "Resume la división para EC2 convencional."
+        },
+        "correct": true
+      },
+      {
+        "id": "C",
+        "text": {
+          "en": "AWS assumes customer permissions when an application uses multiple zones.",
+          "es": "AWS asume los permisos del cliente cuando la aplicación utiliza varias zonas."
+        },
+        "explanation": {
+          "en": "Multi-zone deployment does not transfer authorization responsibility.",
+          "es": "La distribución zonal no transfiere la gestión de acceso."
+        },
+        "correct": false
+      },
+      {
+        "id": "D",
+        "text": {
+          "en": "AWS protects the application; customers protect regional physical hardware.",
+          "es": "AWS protege la aplicación; el cliente protege el hardware físico regional."
+        },
+        "explanation": {
+          "en": "Reverses application and physical infrastructure responsibilities.",
+          "es": "Invierte las responsabilidades."
+        },
+        "correct": false
+      }
+    ],
+    "references": [
+      "shared"
+    ]
+  }
+]
