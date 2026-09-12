@@ -2,21 +2,37 @@
 from copy import deepcopy
 import http.client
 import json
+from pathlib import Path
+import socket
+import ssl
+import tempfile
 import threading
+from trainer.auth import IDLE_SECONDS
 from trainer.banks import make_archive, read_archive
 from trainer.server import LocalServer
+from trainer.tls import ensure_certificate
 from tests.helpers import ROOT, Fixture, bank_data
 
 
 class HTTPTests(Fixture):
+    @classmethod
+    def setUpClass(cls):
+        cls.tls_directory = tempfile.TemporaryDirectory()
+        cls.tls_context, cert, _ = ensure_certificate(Path(cls.tls_directory.name), '127.0.0.1')
+        cls.client_context = ssl.create_default_context(cafile=str(cert))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tls_directory.cleanup()
+
     def setUp(self):
         super().setUp()
         self.server = LocalServer(('127.0.0.1', 0), self.engine, self.access, ROOT / 'web',
-                                  ROOT / 'schema/question-bank-authoring-kit.zip')
+                                  ROOT / 'schema/question-bank-authoring-kit.zip', tls_context=self.tls_context)
         self.thread = threading.Thread(target=lambda: self.server.serve_forever(poll_interval=0.01), daemon=True)
         self.thread.start()
         self.cookies = {uid: self.cookie(uid) for uid in (1, 2, 3)}
-        self.origin = f'http://127.0.0.1:{self.server.server_port}'
+        self.origin = f'https://127.0.0.1:{self.server.server_port}'
 
     def tearDown(self):
         self.server.shutdown()
@@ -38,7 +54,8 @@ class HTTPTests(Fixture):
                 else:
                     request_headers[k] = v
         payload = body if raw else json.dumps(body).encode() if body is not None else b'{}' if method == 'POST' else None
-        con = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=5)
+        con = http.client.HTTPSConnection('127.0.0.1', self.server.server_port, timeout=5,
+                                          context=self.client_context)
         try:
             con.request(method, path, body=payload, headers=request_headers)
             response = con.getresponse()
@@ -54,6 +71,67 @@ class HTTPTests(Fixture):
         self.assertIn(b'/app.js', body)
         self.assertIn('Content-Security-Policy', headers)
         self.assertEqual(headers['X-Content-Type-Options'], 'nosniff')
+
+    def test_http_is_rejected(self):
+        con = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=2)
+        try:
+            with self.assertRaises((OSError, http.client.HTTPException)):
+                con.request('GET', '/')
+                con.getresponse()
+        finally:
+            con.close()
+
+    def test_unfinished_handshake_does_not_block_other_clients(self):
+        with socket.create_connection(('127.0.0.1', self.server.server_port), timeout=2):
+            self.assertEqual(self.request('/')[0], 200)
+
+    def test_passive_requests_never_extend_idle_session(self):
+        for _ in range(6):
+            self.now[0] += 599
+            self.assertEqual(self.request('/api/dashboard')[0], 200)
+            self.assertTrue(self.request('/api/session')[1]['authenticated'])
+        self.now[0] += 6
+        self.assertFalse(self.request('/api/session')[1]['authenticated'])
+        self.assertEqual(self.request('/api/dashboard')[0], 401)
+
+    def test_activity_extends_only_the_current_cookie(self):
+        original = self.now[0]
+        self.now[0] += 3599
+        status, result, headers = self.request('/api/activity', 'POST', {})
+        self.assertEqual(status, 200)
+        self.assertEqual(result['expires_at'], self.now[0] + IDLE_SECONDS)
+        self.assertEqual(float(headers['X-Session-Expires-At']), result['expires_at'])
+        self.now[0] = original + 3600
+        self.assertEqual(self.request('/api/dashboard')[0], 200)
+        self.assertEqual(self.request('/api/dashboard', user=3)[0], 401)
+
+    def test_expired_session_cannot_be_revived_or_edit_attempt(self):
+        attempt = self.engine.create(2, 'test-cert', 'quiz')
+        self.now[0] += IDLE_SECONDS
+        for route, body in [('/api/activity', {}),
+                            (f'/api/attempts/{attempt["id"]}/answer',
+                             {'revision': 0, 'index': 0, 'selected': []})]:
+            self.assertEqual(self.request(route, 'POST', body)[0], 401)
+
+    def test_activity_requires_origin_and_expected_profile(self):
+        for headers, expected in [({'Origin': 'https://attacker.example'}, 403),
+                                  ({'X-Profile-ID': '3'}, 409),
+                                  ({'X-Profile-ID': None}, 409),
+                                  ({'X-Local-App': None}, 403)]:
+            with self.subTest(headers=headers):
+                self.assertEqual(self.request('/api/activity', 'POST', {}, headers=headers)[0], expected)
+
+    def test_cookie_always_secure_including_deletion(self):
+        from trainer.server import Handler
+        self.assertIn('; Secure;', Handler.session_cookie(None, 'example'))
+        status, _, headers = self.request('/api/logout', 'POST', {})
+        self.assertEqual(status, 200)
+        self.assertIn('; Secure;', headers['Set-Cookie'])
+        self.assertIn('Max-Age=0', headers['Set-Cookie'])
+
+    def test_tls_files_are_never_served(self):
+        for path in ('/data/tls/server-key.pem', '/data/tls/server-cert.pem', '/trainer/tls.py'):
+            self.assertEqual(self.request(path)[0], 404)
 
     def test_locales_available_without_login(self):
         for language in ('en', 'es'):

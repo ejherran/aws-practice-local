@@ -1,5 +1,42 @@
 # Version 4.0.0 — RUSH
 
+## Responsive UI refinement
+
+- Made each practice mode a full-card action with local inline icons, concise
+  settings and a clear start label; moved progress below the practice choices.
+- Added compact labeled phone navigation, an accessible sign-out icon, a
+  shorter sticky exam header and 44px question-map targets.
+- Improved tablet layout, mobile input sizing, stacked history filters,
+  wrapping report badges and the bank search empty state.
+- Preserved scroll position and focus after successful or failed answer saves;
+  selecting a bank keeps the mobile bank selector in view.
+- Added an optional standard-library headless browser runner with synthetic
+  fixtures, bilingual responsive checks and isolated fixture regression tests.
+
+## Bank navigation and local security
+
+- Replaced the growing card grid with a searchable bank menu and one selected
+  bank panel, preserving the existing visual style and practice controls.
+  Mobile uses a collapsible menu; selection is remembered per browser/profile.
+- Made HTTPS mandatory and added first-start local self-signed certificate
+  generation with the OpenSSL library already used by Python. Identity reuse,
+  private-key permissions, TLS 1.2 minimum and secure cookies are enforced.
+- Added server-side one-hour inactivity expiry. Explicit UI interaction renews
+  only the current cookie; polling cannot renew authentication. Existing
+  profiles and practice records are preserved and attempt clocks keep running.
+
+## AI Practitioner starter bank
+
+- Added the independent `aws-aif-c01` content version 1.1.0 starter bank with
+  300 original bilingual questions covering all 14 task statements and the five
+  AIF-C01 domains in the declared 20/24/28/14/14 proportions.
+- Included 240 single-answer, 54 two-answer and six three-answer questions, with
+  bilingual rationales for every option and primary-source references for every
+  question.
+- Supplied 65-question / 90-minute exam defaults with 15 unscored questions,
+  proportional ten-question quizzes and a ten-answer / 600-second RUSH default.
+  The 80% target is a practice goal, not the official scaled passing score.
+
 ## Cloud Practitioner content update
 
 - Updated the bundled `aws-clf-c02` starter bank from content version 3.0.0 to

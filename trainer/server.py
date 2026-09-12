@@ -1,10 +1,11 @@
-"""LAN-only HTTP adapter. No third-party dependencies or outbound calls."""
+"""LAN-only HTTPS adapter. No third-party packages or outbound calls."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import ipaddress
 import json
 import logging
 from pathlib import Path
 import socket
+import ssl
 import threading
 from urllib.parse import parse_qs, urlsplit
 from . import __version__
@@ -19,10 +20,12 @@ class LocalServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, address, trainer, access, web_dir, schema_path, secure=False):
+    def __init__(self, address, trainer, access, web_dir, schema_path, *, tls_context):
+        if not isinstance(tls_context, ssl.SSLContext) or tls_context.protocol != ssl.PROTOCOL_TLS_SERVER:
+            raise ValueError('A server TLS context is required; plain HTTP is disabled.')
         self.trainer, self.access = trainer, access
         self.web_dir, self.schema_path = Path(web_dir), Path(schema_path)
-        self.secure = secure
+        self.tls_context = tls_context
         self.slots = threading.BoundedSemaphore(32)
         super().__init__(address, Handler)
 
@@ -38,7 +41,12 @@ class LocalServer(ThreadingHTTPServer):
 
     def process_request_thread(self, request, client_address):
         try:
+            # Handshake inside a bounded worker, never in the accept loop.
+            request.settimeout(5)
+            request = self.tls_context.wrap_socket(request, server_side=True)
             super().process_request_thread(request, client_address)
+        except (ssl.SSLError, OSError):
+            self.shutdown_request(request)
         finally:
             self.slots.release()
 
@@ -67,6 +75,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Referrer-Policy', 'no-referrer')
         self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
         self.send_header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+        self.send_header('Strict-Transport-Security', 'max-age=86400')
+        if getattr(self, 'session_deadline', None) is not None:
+            self.send_header('X-Session-Expires-At', str(self.session_deadline))
+            self.send_header('X-Server-Time', str(self.server.access.storage.clock()))
         for key, value in (headers or {}).items():
             self.send_header(key, value)
         self.end_headers()
@@ -74,8 +86,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(data)
 
     def session_cookie(self, token):
-        return (f'{COOKIE_NAME}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_SECONDS}'
-                + ('; Secure' if self.server.secure else ''))
+        return f'{COOKIE_NAME}={token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age={SESSION_SECONDS}'
 
     def check_host(self):
         host = self.headers.get('Host', '')
@@ -102,8 +113,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get('X-Local-App') != '1':
             raise AppError(403, 'origin_forbidden')
         origin = self.headers.get('Origin')
-        scheme = 'https' if self.server.secure else 'http'
-        if origin and origin != f"{scheme}://{self.headers.get('Host')}":
+        if origin and origin != f"https://{self.headers.get('Host')}":
             raise AppError(403, 'origin_forbidden')
         if self.headers.get('Sec-Fetch-Site') == 'cross-site':
             raise AppError(403, 'origin_forbidden')
@@ -116,6 +126,13 @@ class Handler(BaseHTTPRequestHandler):
         raw = self.rfile.read(size)
         if len(raw) != size:
             raise AppError(400, 'invalid_request')
+        # A slow upload cannot perform a mutation after authentication expires.
+        if getattr(self, 'authenticated_id', None) is not None:
+            session = self.server.access.session(self.headers.get('Cookie'),
+                                                 expected_user=self.authenticated_id)
+            if not session['user']:
+                raise AppError(401, 'sign_in_required')
+            self.session_deadline = session['expires_at']
         if zipped:
             return raw
         try:
@@ -142,9 +159,10 @@ class Handler(BaseHTTPRequestHandler):
             name, content_type = static[path]
             return self.send(200, (self.server.web_dir / name).read_bytes(), content_type)
         access, trainer = self.server.access, self.server.trainer
-        user = access.authenticated(self.headers.get('Cookie'))
+        session = access.session(self.headers.get('Cookie'))
+        user, self.session_deadline = session['user'], session['expires_at']
         if get and path == '/api/session':
-            return self.send(200, {'authenticated': user is not None, 'user': user,
+            return self.send(200, {'authenticated': user is not None, **session,
                                   'registration_open': access.registration_open, 'version': __version__})
         if self.command == 'POST' and path in ('/api/login', '/api/register'):
             body = self.read_body()
@@ -153,15 +171,25 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 token, user = access.register(body.get('username'), body.get('password'), body.get('display_name'),
                                               body.get('language', 'es'), self.client_address[0])
-            return self.send(200, {'user': user}, headers={'Set-Cookie': self.session_cookie(token)})
+            session = access.session(f'{COOKIE_NAME}={token}')
+            self.session_deadline = session['expires_at']
+            return self.send(200, session, headers={'Set-Cookie': self.session_cookie(token)})
         if not user:
             raise AppError(401, 'sign_in_required')
         expected = self.headers.get('X-Profile-ID')
         if (expected is not None and expected != str(user['id'])) or (not get and expected is None):
             raise AppError(409, 'profile_changed')
         user_id = user['id']
+        self.authenticated_id = user_id
         if path.startswith('/api/admin/') and user['role'] != 'admin':
             raise AppError(403, 'admin_required')
+        if self.command == 'POST' and path == '/api/activity':
+            self.read_body()
+            session = access.session(self.headers.get('Cookie'), activity=True, expected_user=user_id)
+            if not session['user']:
+                raise AppError(401, 'sign_in_required')
+            self.session_deadline = session['expires_at']
+            return self.send(200, session)
         if path == '/api/profile':
             if get:
                 return self.send(200, {'user': user})
@@ -170,11 +198,13 @@ class Handler(BaseHTTPRequestHandler):
         if self.command == 'POST' and path == '/api/password':
             body = self.read_body()
             token = access.change_password(user_id, body.get('current_password'), body.get('new_password'), self.client_address[0])
+            self.session_deadline = access.session(f'{COOKIE_NAME}={token}')['expires_at']
             return self.send(200, {'ok': True}, headers={'Set-Cookie': self.session_cookie(token)})
         if self.command == 'POST' and path == '/api/logout':
             self.read_body()
             access.logout(self.headers.get('Cookie'))
-            return self.send(200, {'ok': True}, headers={'Set-Cookie': f'{COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'})
+            self.session_deadline = None
+            return self.send(200, {'ok': True}, headers={'Set-Cookie': f'{COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0'})
         if get and path == '/api/dashboard':
             return self.send(200, trainer.dashboard(user_id))
         if get and path == '/api/banks':

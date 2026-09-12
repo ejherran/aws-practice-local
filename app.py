@@ -6,7 +6,6 @@ import logging
 from pathlib import Path
 import socket
 import sqlite3
-import ssl
 import sys
 import threading
 from trainer import __version__
@@ -16,6 +15,7 @@ from trainer.engine import Trainer
 from trainer.errors import AppError
 from trainer.server import LocalServer
 from trainer.storage import Storage
+from trainer.tls import ensure_certificate, fingerprint
 
 BASE_DIR = Path(__file__).resolve().parent
 LOG = logging.getLogger('practice')
@@ -44,15 +44,15 @@ def local_addresses():
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Offline, multi-user certification practice server.')
     parser.add_argument('--host', default='0.0.0.0', help='IPv4 interface (default: entire LAN).')
-    parser.add_argument('--port', type=int, default=8080, help='HTTP(S) port (default: 8080).')
+    parser.add_argument('--port', type=int, default=8080, help='HTTPS port (default: 8080).')
     parser.add_argument('--data-dir', type=Path, default=BASE_DIR / 'data', help='Local database directory.')
     parser.add_argument('--banks-dir', type=Path, default=BASE_DIR / 'banks', help='Starter-bank ZIP directory.')
     parser.add_argument('--no-starter-banks', action='store_true', help='Skip starter-bank installation; retain any existing catalog.')
     parser.add_argument('--disable-registration', action='store_true', help='Disallow new learner profiles.')
     parser.add_argument('--reset-password', metavar='USERNAME', help='Reset a password locally and exit.')
     parser.add_argument('--validate-bank', type=Path, help='Validate a bank ZIP without changing the database.')
-    parser.add_argument('--cert-file', type=Path, help='Optional PEM certificate for HTTPS.')
-    parser.add_argument('--key-file', type=Path, help='Optional PEM private key for HTTPS.')
+    parser.add_argument('--cert-file', type=Path, help='Existing PEM certificate; default: generated data/tls/server-cert.pem.')
+    parser.add_argument('--key-file', type=Path, help='Existing PEM private key paired with --cert-file.')
     parser.add_argument('--verbose', action='store_true', help='Log HTTP requests.')
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format='%(levelname)s: %(message)s')
@@ -87,13 +87,12 @@ def main(argv=None):
                     banks.import_archive(raw)
                     existing.add(manifest['bank_id'])
         trainer = Trainer(storage, banks)
+        access.sweep()
+        addresses = local_addresses()
+        context, certificate, generated = ensure_certificate(
+            args.data_dir, args.host, addresses, args.cert_file, args.key_file)
         server = LocalServer((args.host, args.port), trainer, access, BASE_DIR / 'web',
-                             BASE_DIR / 'schema' / 'question-bank-authoring-kit.zip', secure=bool(args.cert_file))
-        if args.cert_file:
-            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-            context.minimum_version = ssl.TLSVersion.TLSv1_2
-            context.load_cert_chain(args.cert_file, args.key_file)
-            server.socket = context.wrap_socket(server.socket, server_side=True)
+                             BASE_DIR / 'schema' / 'question-bank-authoring-kit.zip', tls_context=context)
     except (OSError, ValueError, sqlite3.Error, AppError, EOFError) as exc:
         print(f'Startup failed: {exc}', file=sys.stderr)
         if isinstance(exc, AppError):
@@ -105,25 +104,27 @@ def main(argv=None):
         while not stop.wait(1):
             try:
                 trainer.sweep()
+                access.sweep()
             except Exception:
                 LOG.exception('Deadline sweep failed')
 
     worker = threading.Thread(target=sweep, name='deadline-sweeper', daemon=True)
     worker.start()
-    scheme = 'https' if args.cert_file else 'http'
     print(f'\n  AWS Practice Local {__version__} | {len(banks.list())} active bank(s)')
-    print(f'  This computer: {scheme}://127.0.0.1:{args.port}')
+    print(f'  This computer: https://127.0.0.1:{args.port}')
     if args.host == '0.0.0.0':
-        for address in local_addresses():
-            print(f'  Local network: {scheme}://{address}:{args.port}')
+        for address in addresses:
+            print(f'  Local network: https://{address}:{args.port}')
     else:
-        print(f'  Listening: {scheme}://{args.host}:{args.port}')
+        print(f'  Listening: https://{args.host}:{args.port}')
     if created_admin:
         print('  Initial Admin profile created. See README.md for the initial credentials; change the password.')
     print(f'  Data: {storage.path}')
     print('  Use a trusted LAN only. Do not expose this server to the Internet.')
-    if not args.cert_file:
-        print('  HTTP is unencrypted. Use unique passwords for this application.')
+    print(f'  TLS certificate: {certificate}' + (' (created)' if generated else ' (reused)'))
+    print(f'  Certificate SHA-256: {fingerprint(certificate)}')
+    print('  Trust this certificate on each device after verifying its fingerprint. See README.md.')
+    print('  Sessions expire after 1 hour without interaction; attempt timers keep running.')
     print('  Keep this computer running. Ctrl+C stops the server.\n', flush=True)
     try:
         server.serve_forever(poll_interval=0.3)

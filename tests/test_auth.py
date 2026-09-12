@@ -2,7 +2,7 @@
 from pathlib import Path
 import tempfile
 import unittest
-from trainer.auth import Access, COOKIE_NAME, INITIAL_ADMIN_PASSWORD, PASSWORD_ITERATIONS, SESSION_SECONDS
+from trainer.auth import Access, COOKIE_NAME, IDLE_SECONDS, INITIAL_ADMIN_PASSWORD, PASSWORD_ITERATIONS, SESSION_SECONDS
 from trainer.errors import AppError
 from trainer.storage import Storage
 
@@ -95,6 +95,56 @@ class AuthenticationTests(unittest.TestCase):
         token, _ = self.access.login('Admin', INITIAL_ADMIN_PASSWORD)
         self.now[0] += SESSION_SECONDS + 1
         self.assertIsNone(self.access.authenticated(f'{COOKIE_NAME}={token}'))
+
+    def test_idle_expiry_boundary_and_passive_authentication(self):
+        token, _ = self.access.login('Admin', INITIAL_ADMIN_PASSWORD)
+        cookie = f'{COOKIE_NAME}={token}'
+        self.now[0] += IDLE_SECONDS - 1
+        self.assertIsNotNone(self.access.authenticated(cookie))
+        self.now[0] += 1
+        self.assertIsNone(self.access.authenticated(cookie))
+        self.assertIsNone(self.access.session(cookie, activity=True)['user'])
+
+    def test_activity_is_persisted_across_restart(self):
+        token, _ = self.access.login('Admin', INITIAL_ADMIN_PASSWORD)
+        cookie = f'{COOKIE_NAME}={token}'
+        self.now[0] += 3500
+        expiry = self.access.session(cookie, activity=True, expected_user=1)['expires_at']
+        self.access = Access(Storage(self.storage.path, clock=lambda: self.now[0]))
+        self.now[0] += 3599
+        self.assertEqual(self.access.session(cookie)['expires_at'], expiry)
+        self.now[0] += 1
+        self.assertIsNone(self.access.authenticated(cookie))
+
+    def test_activity_does_not_extend_absolute_lifetime(self):
+        token, _ = self.access.login('Admin', INITIAL_ADMIN_PASSWORD)
+        cookie = f'{COOKIE_NAME}={token}'
+        with self.storage.connection() as con:
+            con.execute('UPDATE sessions SET expires_at=?', (self.now[0] + 100,))
+        self.now[0] += 99
+        self.assertEqual(self.access.session(cookie, activity=True)['expires_at'], self.now[0] + 1)
+        self.now[0] += 1
+        self.assertIsNone(self.access.authenticated(cookie))
+
+    def test_activity_profile_binding_does_not_touch_session(self):
+        token, _ = self.access.login('Admin', INITIAL_ADMIN_PASSWORD)
+        cookie = f'{COOKIE_NAME}={token}'
+        before = self.access.session(cookie)['expires_at']
+        self.now[0] += 50
+        self.assertCode('profile_changed', self.access.session, cookie, activity=True, expected_user=2)
+        self.assertEqual(self.access.session(cookie)['expires_at'], before)
+
+    def test_legacy_sessions_upgrade_conservatively_without_resetting_passwords(self):
+        token, _ = self.access.login('Admin', INITIAL_ADMIN_PASSWORD)
+        with self.storage.connection() as con:
+            con.execute('ALTER TABLE sessions RENAME TO old_sessions')
+            con.execute('CREATE TABLE sessions AS SELECT token_hash,user_id,created_at,expires_at FROM old_sessions')
+            con.execute('DROP TABLE old_sessions')
+        self.now[0] += IDLE_SECONDS
+        upgraded = Access(Storage(self.storage.path, clock=lambda: self.now[0]))
+        self.assertIsNone(upgraded.authenticated(f'{COOKIE_NAME}={token}'))
+        self.assertFalse(upgraded.bootstrap_admin())
+        self.assertEqual(upgraded.login('Admin', INITIAL_ADMIN_PASSWORD)[1]['id'], 1)
 
     def test_malformed_cookie_is_rejected(self):
         for value in ('', None, f'{COOKIE_NAME}=../../bad', 'other=abc'):

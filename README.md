@@ -1,430 +1,559 @@
-# AWS Practice Local 4.0 — RUSH
+# AWS Practice Local
 
-A local, multi-user certification practice web application. Run one Python
-process on a computer and use the application from browsers on the same trusted
-network, including phones. No packages to install, API keys, subscriptions,
-CDNs, translation services or cloud resources are required.
+A local, multi-user certification practice app for desktop, tablet and phone.
+Run one Python process and practice from browsers on the same trusted network.
+Your profiles, question banks and progress stay on the server computer.
 
-**Requirements:** Python 3.10 or newer with its standard library, and a modern
-browser with JavaScript enabled. The server uses only standard-library modules.
-The frontend is native HTML, CSS and JavaScript. English and Spanish are included.
+**Version 4.0** includes bilingual English/Spanish practice, searchable question
+banks, quizzes, timed exams and RUSH challenges. No pip packages, Node build,
+API keys, subscriptions, CDNs or cloud services are required.
+
+This is independent practice material, **not an official AWS exam, exam dump or
+proctored testing system**. Use it on a trusted private LAN, not the public internet.
+
+## Contents
+
+- [Quick start](#quick-start)
+- [Included question banks](#included-question-banks)
+- [Practice and results](#practice-and-results)
+- [Administration and bank authoring](#administration-and-bank-authoring)
+- [HTTPS and session security](#https-and-session-security)
+- [Data, backups and upgrades](#data-backups-and-upgrades)
+- [Startup options](#startup-options)
+- [Troubleshooting](#troubleshooting)
+- [Development and validation](#development-and-validation)
 
 ## Quick start
 
-Extract this release into a **new folder**. A fresh install is ready immediately.
-To preserve a v3 installation, stop the old server, back up its entire `data/`
-folder, and copy that folder to this release **before the first launch**. The
-v3 database marker is upgraded automatically; profiles, passwords, banks,
-active quizzes/exams and history remain intact. Do not run v3 on the upgraded
-database. Keep the untouched backup to roll back. V1/v2 databases are unsupported.
-See [UPGRADE.md](docs/UPGRADE.md) for exact precautions.
+### 1. Prepare the application
 
-From the folder containing `app.py`:
+Use Python **3.10 or newer** and a modern browser with JavaScript enabled.
+The backend uses the Python standard library; the frontend is native HTML,
+CSS and JavaScript. Certificate generation uses the OpenSSL library already
+linked to Python, not an external executable. See [HTTPS requirements](#local-https)
+if using an unusual Python distribution.
 
-**Windows**
+Extract the release into a **new folder**, or work from a checkout of this
+repository. No dependency installation or database setup is needed.
+
+**Already using the app?** Stop the old server and back up its entire data
+directory before updating. Preserve that directory before the new version's
+first launch; see [Upgrades](#upgrades). Do not merge two progress databases.
+
+### 2. Start the server
+
+Run these commands from the folder containing `app.py`.
+
+Windows:
 
 ```powershell
 py -3 app.py
 ```
 
-Alternatively, double-click `start_windows.bat`.
+You can also double-click `start_windows.bat`.
 
-**macOS / Linux**
+macOS / Linux:
 
 ```bash
 python3 app.py
 ```
 
-Alternatively, run `sh start.sh`. The terminal prints the addresses to open:
+You can also run `sh start.sh`. The terminal prints the actual addresses,
+data location, certificate path and SHA-256 fingerprint. With the default port:
 
 ```text
-This computer: http://127.0.0.1:8080
-Local network: http://YOUR-COMPUTER-IP:8080
+This computer: https://127.0.0.1:8080
+Local network: https://YOUR-COMPUTER-IP:8080
 ```
 
-Use the actual address printed by the server, not the placeholder. Connect the
-phone and computer to the same reachable LAN. A guest Wi-Fi network may isolate
-devices. The computer must remain running and must not sleep during use. Allow
-the chosen port through your computer's firewall only on the trusted private
-network. Do not forward the port from your router to the internet.
+Replace the placeholder with the actual address printed by the server.
+First startup creates local storage, the initial administrator, both starter
+banks and a unique self-signed HTTPS identity.
 
-The first startup installs the bundled Cloud Practitioner bank automatically.
+### 3. Verify HTTPS and sign in
 
-### Initial administrator
+Before entering credentials, verify the certificate fingerprint against the
+server terminal and explicitly trust the public certificate on the client
+device. See [Local HTTPS](#local-https) for the full procedure. The app never
+installs certificate trust automatically, and plain `http://` is rejected.
 
-```text
-Username: Admin
-Password: Aws+10C41
-```
+Initial credentials for a **new data directory**:
 
-The account is created **once per new data directory**. Restarting never resets
-its password. Sign in and change it under **Profile** before sharing access to
-the server. This initial password is intentionally documented and must not be
-considered secret. Other users select **Create profile** and choose their own
-credentials. Registration cannot create administrator accounts.
+| Username | Password |
+|---|---|
+| `Admin` | `Aws+10C41` |
 
-The administrator can also practice, with a separate personal history just like
-other users. Normal users cannot import banks, change formats, read the admin
-audit log or export full question banks through the API.
+Change this documented password under **Profile** before sharing access.
+The account is created once; restarting or upgrading never resets a changed
+password. Other users choose **Create profile** and receive learner accounts,
+never administrator privileges.
+
+### 4. Connect a phone or another computer
+
+Keep both devices on the same reachable, trusted LAN and open the printed LAN
+`https://` address. On a phone, `127.0.0.1` refers to the phone itself, not the
+server computer. Each client needs to trust the verified certificate.
+
+Keep the server computer awake and the Python process running. Guest Wi-Fi may
+isolate devices. If required, allow the selected port through the host firewall
+**only for the trusted private network**. The app does not change firewall
+rules or router settings. Do not forward the port to the internet.
+
+Press **Ctrl+C** in the server terminal to stop it. Confirmed progress is saved;
+stopping the process does not pause an attempt's deadline.
+
+## Included question banks
+
+The two independent starter archives contain **610 bilingual questions**:
+
+| Certification | Bank ID | Content version | Questions |
+|---|---|---|---:|
+| [Cloud Practitioner — CLF-C02](banks/aws-clf-c02-4.0.0.zip) | `aws-clf-c02` | 4.0.0 | 310 |
+| [AI Practitioner — AIF-C01](banks/aws-aif-c01-1.1.0.zip) | `aws-aif-c01` | 1.1.0 | 300 |
+
+Cloud Practitioner includes 242 single-answer and 68 two-answer questions.
+AI Practitioner includes 240 single-answer, 54 two-answer and six three-answer
+questions across five domains and all 14 task statements. Both include local
+English/Spanish prompts, options, explanations and applicable notes.
+
+Initial formats for both banks:
+
+| Mode | Questions | Time | Scored / unscored |
+|---|---|---|---|
+| Practice quiz | 10 | 13 min 51 sec | 10 / 0 |
+| Full exam | 65 | 90 min | 50 / 15 |
+| RUSH | 10 per set; goal of 10 consecutive correct | 10 min total | Every generated question |
+
+Quiz time is proportional to the exam: `5400 × 10 / 65`, rounded to the nearest
+second. Administrators can change formats per bank; these values are content
+defaults, not engine constants or a claim of official exam calibration.
+
+At startup, the app imports starter ZIPs only for **previously unknown bank
+IDs**. Replacing a ZIP on disk does not update an existing imported bank or
+overwrite its settings. Use the administration import workflow for updates.
 
 ## Practice and results
 
-The included `aws-clf-c02` bank has **310 original questions**, each available
-in English and Spanish, including all options, general explanations, every
-option explanation and applicable notes. It has 242 single-answer questions
-and 68 questions requiring exactly two answers. It is independent practice
-material, not an official AWS exam or an exam dump.
+### Choose a bank and a mode
 
-Initial Cloud Practitioner formats:
+The bank menu searches by name or exam code in either language, including
+accent-insensitive matches. Desktop uses a scrollable sidebar; phones use a
+collapsible selector. The last selected bank is remembered per profile in that
+browser, while progress remains server-side.
 
-| Mode | Questions | Time | Scored / unscored |
-|---|---:|---:|---:|
-| Quiz | 10 | 13 minutes 51 seconds | 10 / 0 |
-| Exam | 65 | 90 minutes | 50 / 15 |
-| RUSH | 10 per set; target 10 consecutive | 10 minutes total | Every generated question |
+Each mode is a full-card action, with the bank's progress summary underneath.
+Phone layouts include compact labeled navigation, large touch targets, stacked
+filters and a shorter sticky attempt header that keeps the timer visible.
+Answer saves preserve scroll position and keyboard focus.
 
-The quiz time is calculated proportionally: `5400 × 10 / 65`, rounded to the
-nearest whole second. The administrator can change all three formats per bank.
-These are the supplied bank's defaults, not constants in the engine.
+Only **one active attempt per user** is allowed across all banks. Use
+**Continue session** to resume it, including from another device signed in
+with the same profile. Separate users can practice concurrently.
 
-Each user's home page shows a separate card for every enabled certification,
-including the arithmetic mean of the **last five completed quiz percentages**
-for that bank. With fewer than five quizzes, the app uses the available results
-and identifies the sample size. Exams and RUSH sessions do not enter that average. Quizzes from
-older versions of the same bank still count; different bank IDs never mix.
+### Quizzes and exams
 
-You can review every completed quiz, exam and RUSH session in **History**, filter by bank or
-mode, reopen its full report, export result JSON, print a report, and filter the
-question review by outcome or domain. History remains accessible when a bank is
-disabled or updated. Personal progress exports do not include password hashes,
-session tokens or another user's results.
+- Questions and options are shuffled once at creation and their order is saved.
+  Reloading, resuming or changing language does not reshuffle them.
+- Answer selections and review flags are stored on the server. Wait for the
+  saved confirmation. After a failed save, check the restored server-confirmed
+  selection and retry.
+- Navigate freely between questions, flag items for review and submit when
+  ready. The server finalizes overdue attempts automatically.
+- Multiple-answer grading requires the exact set of correct options, with no
+  partial credit. Blank or incomplete answers receive no credit.
+- Unscored questions are chosen at creation and hidden as such until the report.
+  They do not enter the main percentage.
+- Deadlines are absolute. Closing the tab, losing connectivity, signing out or
+  restarting the server does not pause the clock. Do not change the server's
+  system time during practice.
 
-### RUSH: consecutive answers against one clock
+### RUSH: a consecutive-answer challenge
 
-Choose **Start RUSH** on a bank card. By default, reach **10 correct answers in
-a row within 10 minutes**. Select the required option(s) and press **Confirm
-answer**. A correct answer advances immediately; a wrong answer resets the
-streak, generates a new full set, and immediately shows the correct answer and
-its explanation. Read it, then choose **Continue with the new set**.
+Select the required option(s), then press **Confirm answer**. A correct answer
+advances the streak. A wrong answer resets the streak, discards the unused
+suffix of the set and generates a new full set. Read the immediate explanation,
+then choose **Continue with the new set**.
 
-**Time does not reset or pause during feedback.** A generated set counts in full,
-even when an error discards its remaining questions. Only confirmed answers can
-score; saving or selecting an option is not a graded submission. The session
-ends on success, timeout, or explicit **End RUSH and view report**.
+The clock **never resets or pauses**, including during feedback. Only confirmed
+answers score; draft selections do not. The session ends when the streak goal
+is reached, time expires or you choose **End RUSH and view report**.
 
 ```text
-RUSH percentage = 100 × total confirmed correct answers / total generated questions
+RUSH percentage = 100 × confirmed correct answers / all generated questions
 ```
 
-Example: three correct answers, one error, then ten correct answers gives
-**13 / 20 = 65%**, and the streak is completed. The abandoned six questions from
-the first set still count in the denominator. Streak completion is a separate
-outcome from the percentage, not a 100% threshold.
+For example, three correct answers, one error, then ten correct answers gives
+**13 / 20 = 65% with the streak completed**. The six discarded questions from
+the first set still count. Streak completion and percentage are separate
+outcomes. See [the RUSH specification](docs/RUSH.md) for full rules and examples.
 
-The report includes all generated questions and explanations, best streak,
-sets, restarts and confirmed-answer counts. Filter the review by wrong answers,
-discarded questions, unanswered questions or unconfirmed selections. RUSH has
-its own **History** mode filter and never changes the last-five quiz average.
-Both languages, profile isolation, resume and versioned bank snapshots apply.
-A full specification, edge cases and API notes are in [RUSH.md](docs/RUSH.md).
+### Progress, history and question cycles
 
-### Timing, navigation and grading (quiz and exam)
+The bank summary averages the **last five completed quiz percentages** for
+that user and bank ID. With fewer quizzes, it uses the available results and
+shows the sample size. Exams and RUSH never affect this average; older content
+versions of the same bank still count.
 
-- Questions and answer options are shuffled when the session is created. Their
-  order is then saved; reloading or switching languages does not reshuffle them.
-- Every confirmed answer and review flag is stored on the server. Wait for the
-  saved confirmation, especially on an unreliable network. If a request fails,
-  the UI restores the confirmed state and asks you to check and retry.
-- A session has an absolute server-side deadline. Closing the tab, switching
-  devices or restarting the server does not pause or reset the clock. After an
-  outage, overdue sessions are finalized when the server restarts.
-- One active session is allowed per user across all certifications. Different
-  users can practice concurrently. Sign in with the same profile to resume from
-  another device. Do not change the server's system clock during practice.
-- Unscored questions are selected when an attempt starts and are not identified
-  in the active-session response or interface. The completed report identifies
-  them and explains them just like the other questions.
-- Multiple-answer questions require the exact set of correct options. There is
-  no partial credit. Blank or incomplete answers receive no credit. Only scored
-  questions enter the main percentage; a separate total covers every question.
+**History** lets you filter by bank or mode, reopen reports, review explanations
+and references, export result JSON and print reports. Historical results remain
+available after a bank is disabled or replaced. Results are practice percentages,
+not AWS scaled scores. The initial 80% practice target is configurable and is
+**not an official pass mark or a guarantee of certification success**.
 
-Results are **practice percentages**, not AWS scaled scores. The configurable
-80% initial practice target is an application goal, not an official pass mark.
-The app does not convert results into a supposed score out of 1000 or guarantee
-that reaching the practice target predicts certification success.
+A separate question deck exists for each **user + bank ID + content version**.
+Quizzes, exams and RUSH sets share that deck without replacement. Questions are
+consumed when assigned; abandoning an attempt does not return them to the pool.
+After exhaustion, a new cycle begins.
 
-### No-repeat cycles
+There are no duplicate questions within a quiz, exam or individual RUSH set,
+even across cycle boundaries. Later RUSH sets can revisit questions only after
+the shared cycle is exhausted. No-repeat selection takes priority over exact
+domain quotas; reports identify distribution adjustments. New content versions
+start a fresh deck; settings-only changes preserve the current deck.
 
-A separate deck exists for each **user + bank ID + bank version**. Quizzes, exams and RUSH
-sets consume the same deck without replacement. Questions are assigned when a
-session starts, so abandoning a session does not return its questions to the
-unseen pool. At exhaustion, another shuffled cycle begins.
+### English and Spanish
 
-A quiz, exam or individual RUSH set crossing a cycle boundary can draw from both
-cycles, but never contains a duplicate question. A long RUSH session may repeat
-questions in later sets only after the shared bank cycle is exhausted. Domain weights are best-effort quotas. If the
-remaining pool cannot satisfy exact weights without repetition, no repetition
-takes priority and the completed report identifies the adjusted distribution.
-Question order is shuffled after selection as well.
+Change language from the header at any time. Signed-in preferences are saved
+to the profile. Answers, option order, flags and deadlines remain unchanged.
 
-A new content version starts its own fresh deck. A format-only change preserves
-the current version's remaining-question cycle.
+Imported banks can declare English, Spanish or both; every declared translation
+must be complete. A monolingual bank shows a content-language fallback notice.
+The app never calls a translation service. Optional external reference links
+need internet access when opened; practice itself does not.
 
-## English and Spanish
+## Administration and bank authoring
 
-Use the header language selector before signing in or during practice. A signed-in
-user's preference is saved in the profile. The bundled bank has complete local
-translations; changing language preserves the attempt, answers, option order,
-review flags and deadline.
+Open **Admin** using the initial administrator profile. Administrators can
+practice with their own progress, but bank-management privileges do not grant
+access to another user's practice endpoints or personal exports.
 
-The UI supports both languages for every bank. Imported banks may declare either
-or both supported languages. Every declared language must be fully populated.
-For a monolingual bank, the app displays a clear content-language fallback notice
-instead of claiming to translate missing questions. External reference links are
-optional reading and require internet access when clicked; practice does not.
-
-## Administrator workflow
-
-Open **Administration** after signing in as `Admin`.
-
-### Import a certification bank
+### Import or update a bank
 
 1. Choose a ZIP containing exactly `manifest.json` and `questions.json` at its root.
 2. Select **Validate ZIP** and inspect the title, version, languages and count.
-3. Select **Import bank**. For an existing bank ID, confirm the version replacement.
+3. Select **Import bank**. Confirm replacement if that bank ID already exists.
 
-A new certification uses a new `bank_id`. Revised content uses the same ID and a
-new version such as `1.1.0`. An already imported ID/version pair is immutable and
-cannot be overwritten. Version numbers identify releases; numeric ordering is
-not enforced. Imported content is stored locally in SQLite, independently from
-the Python engine. The original upload is not extracted into application folders.
+Use a new `bank_id` for a new certification and the same ID with a new `version`
+for revised content. ID/version pairs are immutable: duplicates cannot be
+overwritten. Numeric version ordering is not enforced.
 
-Importing a new version makes it current and applies its manifest defaults to
-**future sessions**. Previously started attempts and completed reports retain
-snapshots of their original content, translations and settings. Importing a
-replacement never silently rewrites old answers or report explanations.
+A replacement becomes current and applies its defaults to **future attempts**.
+Active attempts and old reports retain snapshots of their original content,
+translations and settings. Imported content is stored in SQLite; uploaded ZIP
+entries are never extracted to application folders or executed.
 
-### Configure a bank
-
-Each bank has independent quiz, exam and RUSH settings:
+### Configure formats
 
 | Setting | Behavior |
 |---|---|
-| Question count | 1 to the smaller of 500 and the available bank size. |
-| Time limit | 1 to 86,400 seconds; exam and RUSH timing is fixed. |
-| Unscored questions | Quiz/exam only: zero to one less than the mode's question count. Hidden until completion. RUSH scores all generated questions. |
-| Proportional quiz timing | Calculates quiz seconds from the exam's duration and question count. Disable it for a fixed quiz time. |
-| Practice target | Quiz/exam percentage from 0 to 100, never an official pass mark. RUSH uses its consecutive-answer goal instead. |
-| RUSH goal | `question_count` correct answers in a row, default 10 (capped at bank size for tiny banks). |
-| Domain weights | Integer percentages totaling 100. No-repeat selection has priority over exact quotas. |
-| Available to learners | Disabling prevents new sessions, without deleting history or blocking an existing session. |
+| Question count | 1 to the smaller of 500 and the bank size. |
+| Time limit | 1–86,400 seconds; fixed for exam and RUSH. Quiz can be proportional. |
+| Unscored questions | Quiz/exam only: 0 to one less than the question count; hidden until completion. |
+| Practice target | Quiz/exam only: 0–100%; never an official passing score. |
+| RUSH goal | The set's question count, reached as consecutive correct answers. |
+| Domain weights | Integer percentages totaling 100; no-repeat rules take priority. |
+| Available to learners | Disabling prevents new attempts but preserves history and active attempts. |
 
-Saved settings affect only future attempts. The admin page also exports the
-current bank as a ZIP, including its current format settings, and shows recent
-bank import/configuration activity. Import updates through this page rather than
-editing the SQLite database or overwriting application source files.
+Changes affect future attempts only. The admin page also exports the current
+bank with its settings and shows recent import/configuration activity.
+Learners cannot access these management operations through the UI or API.
 
-## Create new banks: schema and AI authoring
+### Author a new bank
 
-Contract v2 adds optional `defaults.rush` with `question_count` and
-`duration_seconds`. The app still imports unchanged contract-v1 banks, applying
-RUSH defaults automatically. Bank exports use v2 and retain the content version;
-the bundled 310-question bank uses contract v2 / content version 4.0.0.
-The updated authoring kit documents both contracts. V2 banks require engine 4+.
+Download the authoring kit from the app footer, or use
+[schema/question-bank-authoring-kit.zip](schema/question-bank-authoring-kit.zip).
+It contains the contract guide, authoring instructions, JSON Schemas, a
+standard-library builder/validator and an importable example.
 
-
-Any signed-in user can download **the authoring kit ZIP** from the footer. The
-administrator also has a download button in Administration. A copy ships at:
-
-```text
-schema/question-bank-authoring-kit.zip
-```
-
-The kit includes:
-
-```text
-README.md                    Detailed contract and workflow
-AGENTS.md                    Editorial and AI-authoring instructions
-manifest.schema.json         Manifest JSON Schema
-questions.schema.json        Question-array JSON Schema
-example/manifest.json        Editable bilingual example
-example/questions.json       Editable bilingual example
-example-bank.zip             Importable four-question example
-build_bank.py                Standard-library ZIP builder
-validate_bank.py             Standard-library semantic validator
-validator/                   Shared validation implementation
-```
-
-**The kit itself is not an importable bank.** Its `example-bank.zip` is. The
-example is illustrative, not a complete study bank, and is not installed in the
-normal catalog by default. A second copy is in `docs/example-bank.zip` for tests.
-
-After editing a copy of the example folder:
+**The authoring kit itself is not an importable bank.** Use its
+`example-bank.zip` as an example, not a complete study bank. After editing a
+copy of the kit's example directory:
 
 ```bash
 python3 build_bank.py my-bank my-certification-1.0.0.zip
 python3 validate_bank.py my-certification-1.0.0.zip
 ```
 
-You can also validate a completed bank with the main app, without starting the
-server or changing data:
+From the app directory, validate an archive without starting the server or
+modifying the database:
 
 ```bash
 python3 app.py --validate-bank my-certification-1.0.0.zip
 ```
 
-The contract supports single-answer and multiple-answer questions. Different
-certifications can have different banks, domains, counts, timings and unscored
-counts without modifying the engine. This is not a claim that every possible
-interactive question format or psychometric scoring method is implemented.
-Verify each certification's current official guide before authoring its bank.
+The contract supports single- and multiple-answer questions, bank-specific
+domains and configurable formats. Limits are **5,000 questions, 10 MiB
+compressed and 40 MiB expanded**. Only the two root JSON files are allowed;
+ZIP_STORED and DEFLATE are supported. Malformed or duplicate-key JSON, unknown
+fields, missing translations, inconsistent answers, encrypted/symlink entries
+and excessive expansion are rejected.
 
-The bank limit is 5,000 questions, 10 MiB compressed and 40 MiB expanded. ZIPs
-must contain only the two JSON entries; no folder wrappers, hidden operating-
-system files or attachments. ZIP_STORED and DEFLATE are supported. The importer
-rejects malformed or duplicate-key JSON, missing translations, inconsistent
-answer counts, unknown references/domains, invalid format settings, encrypted
-entries, symlinks and excessive expansion ratios. It never executes bank content.
+Contract v1 remains readable. Contract v2 adds optional RUSH defaults and is
+used by exports and both starter banks; v2 requires app version 4 or newer.
+The bank's content version and the file contract's `schema_version` are distinct.
 
-Validation establishes structural consistency, **not factual accuracy** or exam
-calibration. Review content, translations and distractors separately. The
-original Cloud Practitioner bank retains a September 6, 2026 content reference
-date and relevant terminology/availability notes from the preceding review.
+See [the schema guide](schema/README.md) for the complete contract.
+Validation establishes structural consistency, **not factual accuracy or exam
+calibration**. Review facts, translations, references and distractors separately,
+using the certification's current official guide. See
+[the changelog](docs/CHANGELOG.md) for bundled content revisions and review notes.
 
-## Storage and backups
+## HTTPS and session security
 
-The app creates:
+### Local HTTPS
+
+The app requires **TLS 1.2 or later**. With the default configuration, it creates
+`data/tls/` only when that identity directory is absent, then reuses the existing
+certificate/key pair. Invalid, expired or incomplete pairs stop startup; there
+is no plaintext fallback and no silent renewal.
+
+The generated identity uses RSA-3072/SHA-256, lasts one year and covers
+`localhost`, loopback addresses, the hostname and detected local IPs at creation.
+Generation uses Python's linked OpenSSL library through standard-library
+`ctypes`. No pip package, external OpenSSL command or certificate service is
+needed. Python builds that do not expose the required OpenSSL symbols must use
+an existing certificate/key pair.
+
+To connect safely:
+
+1. Obtain the public `data/tls/server-cert.pem` and the SHA-256 fingerprint
+   printed in the server terminal.
+2. Transfer **only the public certificate** to the client and compare its
+   fingerprint through a trusted channel.
+3. Explicitly trust the verified certificate using the device/browser's
+   supported certificate settings, then open a covered `https://` hostname/IP.
+
+Trust steps differ by device and browser. An untrusted device will show a
+certificate warning; do not blindly bypass it. The app never modifies trust
+stores. Keep `server-key.pem` private and out of shared archives and Git.
+
+Generated TLS directories are owner-only on POSIX; Windows grants access to
+the owner and SYSTEM. For renewal or an address change, stop the server and
+move the existing `data/tls/` to a protected backup location before restarting.
+Verify and trust the new identity on each client. Do not remove the database.
+A stable hostname or reserved LAN IP can reduce address changes.
+
+Custom identities use `--cert-file` and `--key-file` together. Supply a valid
+PEM certificate with matching SAN names and an unencrypted matching private key
+readable by the server account. Custom files are never generated or overwritten.
+
+### Inactivity timeout
+
+Authentication expires after **one hour without acknowledged user interaction**,
+with a separate maximum lifetime of 30 days. The server persists and enforces
+both limits. Clicks, typing, wheel scrolling and touch interactions send activity
+notices at most once every 20 seconds.
+
+Reading without interaction counts as inactivity. Background polling, timer
+updates and focus changes do not renew authentication. Tabs sharing a cookie
+share its activity deadline; separate browser sessions have separate deadlines.
+
+The UI checks every 15 seconds and when returning to a tab. It clears private
+content on expiry, including when offline once the last known deadline is
+reached. The API rejects expired cookies immediately. Sign in again to access
+saved progress; attempt clocks continue while signed out.
+
+### Security boundaries
+
+Passwords use salted PBKDF2-HMAC-SHA256 with 600,000 iterations. Session tokens
+are hashed in storage; cookies use Secure, HttpOnly and SameSite attributes.
+Password changes revoke other sessions. Server checks enforce roles, ownership,
+profile binding, origins, host validation and upload limits.
+
+Active quizzes/exams do not reveal answer keys. RUSH exposes only its current
+question, with immediate explanations for an explicitly confirmed wrong answer.
+Future RUSH questions remain hidden. Imported text is escaped and reference
+URLs are restricted to HTTPS.
+
+These safeguards are not an independent security audit. Anyone with sufficient
+host operating-system access can inspect the database and full question banks.
+Use unique passwords and a trusted LAN. There is no cloud authentication,
+email recovery service or public-hosting support.
+
+## Data, backups and upgrades
+
+By default, these files live beside `app.py`:
 
 ```text
-data/practice.sqlite3
+data/
+  practice.sqlite3       Profiles, sessions, banks, settings, decks and results
+  tls/
+    server-cert.pem     Public HTTPS certificate
+    server-key.pem      Private key — never share
 ```
 
-This local SQLite file contains profiles, hashed passwords, session records,
-versioned imported content, format settings, decks, attempt snapshots, results
-and the administration audit log. No database server is required.
+Use the same `--data-dir` consistently if choosing a different location.
+Imported banks and immutable attempt snapshots are stored in SQLite.
 
-**For a full backup:** stop the app, copy the entire `data` directory to safe
-storage, then restart. Restore with the server stopped, using the same application
-storage version. Treat backups as sensitive: they contain all local accounts and
-results. Imported banks are included in the database backup. Exporting a bank is
-not a backup of progress. A personal JSON export is for inspection, not automatic
-restoration. The server host's operating-system account can read local files;
-application roles are not protection against someone with host administrator access.
+### Full backup and restore
+
+1. Stop the server with **Ctrl+C**.
+2. Copy the entire data directory to protected storage, including TLS files.
+3. Restart the server after the copy completes.
+
+Restore with the server stopped and a compatible application version. Do not
+merge databases or copy a live database while it is being written. Backups
+contain all accounts, sessions, results and private keys: treat them as sensitive.
+
+| Export or backup | Contains | Intended use |
+|---|---|---|
+| Bank ZIP | Current bank content and format settings | Import/share a bank; no user progress |
+| Result JSON | One completed attempt belonging to the signed-in user | Review |
+| Personal JSON | That profile's progress, without password derivatives, tokens or other users' records | Review; not automatic restore |
+| Full stopped-server data copy | Database and local TLS identity | Disaster recovery or upgrade migration |
+
+### Upgrades
+
+Always extract an update into a **new directory**. Stop and back up the previous
+installation, then copy its data directory before the new version's first start.
+Existing passwords and progress are preserved; do not run two versions against
+the same database.
+
+Storage marker 3 upgrades automatically to marker 4. V1/v2 progress is
+unsupported. Never reopen an upgraded database with older code; rollback uses
+the untouched backup and old application. See [UPGRADE.md](docs/UPGRADE.md).
+
+An upgrade from HTTP to HTTPS changes the browser origin, so old HTTP cookies
+and local UI preferences are not reused. Server-side progress is unaffected.
+Legacy sign-ins without activity metadata use their original sign-in time and
+may immediately require signing in again. Deadlines continue during upgrades.
 
 ### Local password recovery
 
-Run from the application folder. Prefer stopping the server first:
+Prefer stopping the server first, then run from the application directory:
 
 ```bash
 python3 app.py --reset-password Admin
 ```
 
-The command prompts twice without placing the new password in shell history.
-It preserves the profile's role and progress and revokes that user's sessions.
-Use the username of a learner to reset that learner's password instead.
-For a custom data directory, pass the same `--data-dir` used by the server.
+The command prompts twice without putting the password in shell history.
+It preserves role and progress and revokes the target user's sessions. Substitute
+a learner's username to reset that profile. Include the original `--data-dir`
+when using a custom location. On Windows, use `py -3` in place of `python3`.
 
-## Other startup options
+## Startup options
+
+Use `py -3` on Windows or `python3` on macOS/Linux. Run `app.py --help` through
+that interpreter for the complete CLI reference.
+
+| Option | Purpose / default |
+|---|---|
+| `--host ADDRESS` | IPv4 bind address; default `0.0.0.0` exposes the service to reachable LAN clients. Use `127.0.0.1` for this computer only. |
+| `--port PORT` | HTTPS port; default `8080`. |
+| `--data-dir PATH` | Database and generated TLS identity; default `data/` beside the application. |
+| `--banks-dir PATH` | Starter ZIP directory; default `banks/` beside the application. |
+| `--no-starter-banks` | Skip seed imports; does not remove existing banks. |
+| `--disable-registration` | Prevent new learner registrations; existing users can still sign in. |
+| `--cert-file PATH --key-file PATH` | Use an existing PEM certificate/key pair. |
+| `--validate-bank PATH` | Validate a bank and exit without modifying data. |
+| `--reset-password USERNAME` | Prompt for a new password locally and exit. |
+| `--verbose` | Enable HTTP request logging. |
+
+Examples:
 
 ```bash
-# Use a different port.
-python3 app.py --port 8090
+# This computer only, with a different HTTPS port.
+python3 app.py --host 127.0.0.1 --port 8090
 
-# Listen only on this computer.
-python3 app.py --host 127.0.0.1
+# A separate installation with registrations disabled.
+python3 app.py --data-dir /path/to/practice-data --disable-registration
 
-# Store progress somewhere else.
-python3 app.py --data-dir /path/to/practice-data
-
-# Do not permit additional learner registrations.
-python3 app.py --disable-registration
-
-# A new installation without automatic starter bank installation.
-python3 app.py --no-starter-banks --data-dir /path/to/new-empty-data
-
-# Optional HTTPS with a certificate and key you already manage.
+# Use an existing TLS identity.
 python3 app.py --cert-file /path/to/certificate.pem --key-file /path/to/private-key.pem
-
-# Print all available options.
-python3 app.py --help
 ```
 
-For HTTPS, the browser must trust the certificate and its name must match the
-address used. The application does not obtain certificates from an external
-service. Keep private keys outside distributed source and backups shared with
-others.
+## Troubleshooting
 
-`banks/` is only a first-install seed directory. Startup imports an unknown bank
-ID once; it never reverts a current version or overrides administrator settings.
-Use the admin upload workflow for updates. `--no-starter-banks` skips this seed
-step but does not remove banks already stored in an existing database.
+| Symptom | Check |
+|---|---|
+| The page does not open over HTTP | Use `https://` and the printed port. Plain HTTP is intentionally rejected. |
+| The phone cannot reach the server | Use the computer's LAN IP, not `127.0.0.1`; check the running process, sleep, Wi-Fi isolation and private-network firewall rules. |
+| Certificate warning | Verify the fingerprint, trust the correct public certificate and use a hostname/IP listed in its SAN. Do not ignore an unexpected identity change. |
+| Startup reports an invalid/incomplete TLS identity | Restore the matching pair, or follow the stopped-server renewal procedure above. Check the host clock for validity errors. |
+| Certificate generation cannot access OpenSSL | Use a compatible CPython installation or provide an existing valid PEM pair. |
+| Port already in use | Stop the previous instance or choose another `--port`; update the browser address too. |
+| Signed out while reading | Reading alone counts as inactivity. Sign in again; saved answers remain, but the attempt deadline may have passed. |
+| A save failed or another tab changed the attempt | Check the restored saved state and retry from the current profile; avoid editing one attempt from multiple tabs at once. |
+| Copying a new bank ZIP did not update the catalog | Startup seeds unknown bank IDs only. Import the new content version through Admin. |
+| Import says the version already exists | Use a new content version for a revision; an existing ID/version pair cannot be overwritten. |
+| A bank ZIP is rejected | Validate it locally, check the two root JSON filenames, and ensure it is not the authoring-kit ZIP. |
+| Old interface after an update | Reload the page and confirm the server is running from the new application directory. |
 
-## Security boundaries
+## Development and validation
 
-Use a trusted private LAN. The built-in HTTP server is not presented as a
-public-internet production service. HTTP is unencrypted, so use unique
-application passwords and change the documented administrator password.
-Optional TLS is available for deployments where you manage a trusted certificate.
-
-Passwords are derived with PBKDF2-HMAC-SHA256, unique salts and 600,000 iterations.
-Session tokens are stored as hashes and use HttpOnly/SameSite cookies; Secure is
-added under HTTPS. Password changes revoke other sessions. The app checks roles,
-attempt ownership, profile binding, request origins, allowed hosts and upload
-limits. Active quiz/exam responses exclude solutions and scoring flags. Active RUSH
-responses expose only the current question, plus the explicitly confirmed failed
-question when feedback is pending; future questions remain hidden. Imported
-text is escaped in the UI and references are restricted to HTTPS URLs.
-
-These controls are not an independent security audit or secure exam proctoring.
-Do not expose the port publicly. A local administrator can inspect the database
-and the full question banks by design. Users share one server, not one progress
-profile. There is no public password-recovery service or email integration.
-
-## Source layout
+### Source map
 
 ```text
-app.py                       CLI, startup, optional TLS and deadline sweeper
-trainer/auth.py              Profiles, password hashing and sessions
-trainer/banks.py             Bank contract, ZIP validation and version repository
-trainer/engine.py            Generic question selection, timing and scoring
-trainer/storage.py           SQLite schema and transactional access
-trainer/server.py            HTTP routes, static allowlist and access checks
-web/app.js                   Native browser application
-web/styles.css               Responsive desktop/mobile presentation
-web/locales/en.json           English interface and error messages
-web/locales/es.json           Spanish interface and error messages
-banks/*.zip                  Independent starter content
-schema/                     Schemas and portable authoring kit
-tests/                      Standard-library unit and HTTP integration tests
-docs/                       RUSH specification, upgrade guide, architecture, QA and example bank
-AGENTS.md                   Instructions for maintainers and coding agents
+app.py                       CLI, HTTPS startup and deadline sweeper
+trainer/auth.py              Credentials and persisted sessions
+trainer/banks.py             Bank ZIP contract and version repository
+trainer/engine.py            Certification-agnostic practice and scoring
+trainer/storage.py           SQLite schema and transactions
+trainer/server.py            Routes, authorization and static allowlist
+trainer/tls.py               Certificate generation and TLS configuration
+web/                         Native responsive UI and English/Spanish locales
+banks/                       Independent starter content archives
+schema/                      Schemas, authoring sources and downloadable kit
+tests/                       Standard-library unit and HTTPS integration tests
+tools/check_ui.py            Optional isolated headless browser regression checks
+tools/build_authoring_kit.py  Portable kit builder
+docs/                        Architecture, upgrades, RUSH rules and validation notes
 ```
 
-Source identifiers, comments and developer documentation are English. Spanish
-appears only as localized UI or educational content. There is no `requirements.txt`
-because there are no third-party runtime or test-suite requirements.
+Read [AGENTS.md](AGENTS.md) before changing the source. Identifiers, comments and
+developer documentation use English; Spanish belongs in localization fields
+and educational content. Keep the runtime and normal test suite standard-library
+only. Do not add hosted dependencies or expose private data through static routes.
 
-## Tests and maintenance
+### Run the checks
+
+From the repository root, with Python site packages disabled:
 
 ```bash
-python3 -m unittest discover -s tests -v
-python3 -m compileall -q app.py trainer tests
+python3 -S -m unittest discover -s tests -v
+python3 -S -m compileall -q app.py trainer tests tools
+python3 -S app.py --validate-bank banks/aws-clf-c02-4.0.0.zip
+python3 -S app.py --validate-bank banks/aws-aif-c01-1.1.0.zip
+python3 -S app.py --validate-bank docs/example-bank.zip
 ```
 
-Tests use temporary databases and never modify `data/`. Authentication tests use
-real production password derivation, so test duration depends on the computer.
-Read `docs/QA.md` for the validation performed on this release and its limits.
-Read `AGENTS.md` before modifying the engine or generating another bank.
+On Windows, substitute `py -3` for `python3`. Tests use temporary databases,
+not your `data/`, and include real password derivation and HTTPS requests.
+The latest recorded validation passed **245 tests** and **88 browser-view
+combinations**. See [QA.md](docs/QA.md) and
+[test-results.txt](docs/test-results.txt) for exact methods and limitations.
 
-Editable authoring-kit sources are in `schema/authoring/`. After changing the
-contract, schemas or authoring instructions, rebuild the downloadable kit with:
+Optional browser regression checks use an **already installed** Chromium/Chrome
+executable and synthetic engine fixtures. They do not require a running service
+or live profiles. Example for Windows:
+
+```powershell
+py -3 -S tools/check_ui.py --browser 'C:\Program Files\Google\Chrome\Application\chrome.exe' --output .qa/ui-check-new
+```
+
+The output directory must be new. Defaults cover 320, 390, 768 and 1280 CSS-pixel
+widths, both languages and 11 views. Screenshots and results remain local QA
+artifacts. These are headless browser checks, not physical-phone or Safari/iOS
+validation; the standard-library unit suite does not require a browser.
+
+### Maintain the authoring kit and releases
+
+After changing the bank contract or authoring instructions:
 
 ```bash
 python3 tools/build_authoring_kit.py
 ```
 
-The builder copies the canonical validator into the standalone kit and refreshes
-the importable example. It does not import content into your progress database.
+The builder synchronizes the canonical validator and examples; it does not
+import content into a user's database. Keep the JSON Schemas, authoring guide,
+kit and tests aligned.
 
-Official format reference for the bundled bank:
-https://docs.aws.amazon.com/aws-certification/latest/cloud-practitioner-02/cloud-practitioner-02.html
+Release into a new directory with source, docs, schemas, the kit and independent
+bank ZIPs. Refresh `SHA256SUMS.txt` for shipped file bytes, then validate banks
+and run tests from an extracted copy. Exclude `data/`, private keys, cookies,
+caches and generated QA artifacts. Keep generated data and QA output in their
+Git-ignored directories.
+
+Further reading: [Architecture](docs/ARCHITECTURE.md) ·
+[Changelog](docs/CHANGELOG.md) · [Upgrade guide](docs/UPGRADE.md) ·
+[Bank schema](schema/README.md) · [RUSH rules](docs/RUSH.md).

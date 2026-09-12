@@ -9,6 +9,8 @@ const state = {
   skew: 0, heartbeatBusy: false, authMode: "login", historyBank: "", historyKind: "all", historyPage: 0,
   reviewFilter: "all", reviewDomain: "all", reviewId: null, importFile: null, importPreview: null,
   toastTimer: null, lastTimeoutCheck: 0, saveFailed: false, lastRoute: null,
+  selectedBank: "", bankQuery: "", sessionUntil: null, sessionCheckBusy: false,
+  activityBusy: false, lastActivitySent: -Infinity, authGeneration: 0,
 };
 const local = {
   get(key) { try { return localStorage.getItem(key); } catch (_) { return null; } },
@@ -47,6 +49,7 @@ function connection(failed) {
   $("#connection").classList.toggle("hidden", !failed);
 }
 async function request(endpoint, body, raw = false, file = false) {
+  const generation = state.authGeneration;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), raw ? 30000 : 15000);
   try {
@@ -55,9 +58,15 @@ async function request(endpoint, body, raw = false, file = false) {
     if (body !== undefined) { headers["X-Local-App"] = "1"; headers["Content-Type"] = raw ? "application/zip" : "application/json"; }
     const response = await fetch(endpoint, {method:body === undefined ? "GET" : "POST", credentials:"same-origin", cache:"no-store", headers,
       body:body === undefined ? undefined : raw ? body : JSON.stringify(body), signal:controller.signal});
+    if (generation !== state.authGeneration) throw {status:409,code:"profile_changed",discarded:true};
     connection(false);
     if (!response.ok) {
       const data = await response.json(); const error = new Error(data.code); error.code = data.code; error.status = response.status; error.data = data; throw error;
+    }
+    const expiry = response.headers.get("X-Session-Expires-At"), serverTime = response.headers.get("X-Server-Time");
+    if (expiry !== null && serverTime !== null) {
+      const until = performance.now() + (Number(expiry) - Number(serverTime)) * 1000;
+      if (Number.isFinite(until)) state.sessionUntil = until;
     }
     return file ? response.blob() : response.json();
   } catch (error) {
@@ -73,23 +82,68 @@ async function download(endpoint, filename) {
   } catch (error) { handleError(error); }
 }
 function handleError(error) {
+  if (error.discarded) return;
   if (error.code === "profile_changed" || error.code === "sign_in_required") {
-    state.user = null; state.attempt = null; state.dashboard = null; renderHeader(); renderAuth();
+    clearSession(); renderHeader(); renderAuth();
   }
   if (error.data?.attempt) { acceptAttempt(error.data.attempt); if (isAttempt()) renderAttempt(); }
   if (error.data?.active_id) go(`attempt/${error.data.active_id}`);
   toast(errorText(error), true);
 }
+function clearSession() {
+  state.authGeneration++; state.routeId++;
+  state.user = null; state.attempt = null; state.dashboard = null; state.sessionUntil = null;
+  state.selectedBank = ""; state.bankQuery = ""; state.authMode = "login";
+  state.importFile = null; state.importPreview = null;
+  document.querySelectorAll("dialog[open]").forEach(dialog => dialog.close());
+}
+async function checkSession() {
+  if (!state.user || state.sessionCheckBusy) return;
+  state.sessionCheckBusy = true;
+  try {
+    const result = await request("/api/session");
+    if (!result.user || result.user.id !== state.user?.id) {
+      clearSession(); renderHeader(); renderAuth(); toast(t("session_expired"), true);
+    }
+  } catch (error) {
+    if (error.code !== "network_error") handleError(error);
+    else if (state.sessionUntil !== null && performance.now() >= state.sessionUntil) {
+      clearSession(); renderHeader(); renderAuth(); toast(t("session_expired"), true);
+    }
+  } finally { state.sessionCheckBusy = false; }
+}
+async function recordActivity(event) {
+  if (!event.isTrusted || document.hidden || !state.user || state.activityBusy ||
+      performance.now() - state.lastActivitySent < 20000) return;
+  state.activityBusy = true; state.lastActivitySent = performance.now();
+  try { await request("/api/activity", {}); }
+  catch (error) { if (error.code !== "network_error") handleError(error); }
+  finally { state.activityBusy = false; }
+}
 function busy(button, active) { if (button) { button.disabled = active; button.setAttribute("aria-busy", String(active)); } }
+function icon(name) {
+  const paths = {
+    home: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+    history: '<path d="M3 11a9 9 0 1 1 2.6 7M3 4v7h7M12 7v5l3 2"/>',
+    profile: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
+    admin: '<path d="M4 7h16M4 17h16M8 4v6M16 14v6"/>',
+    logout: '<path d="M9 4H4v16h5M9 12h12m-5-5 5 5-5 5"/>',
+    quiz: '<path d="m4 7 2 2 4-4M13 7h7M4 14h16M4 19h10"/>',
+    exam: '<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/>',
+    rush: '<path d="m13 2-9 12h7l-1 8 10-13h-8z"/>',
+    arrow: '<path d="M4 12h16m-6-6 6 6-6 6"/>'
+  };
+  return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths[name] || ""}</svg>`;
+}
 function renderHeader() {
   document.documentElement.lang = state.language;
   document.title = "AWS Practice Local";
   const route = path().split("/")[0];
   $("#header").innerHTML = `<div class="topbar"><a href="#home" class="brand"><img src="/favicon.svg" alt=""><span>AWS Practice<small>LOCAL · v4.0</small></span></a>
-    ${state.user ? `<nav class="nav" aria-label="${esc(t("home"))}">${["home","history","profile",...(state.user.role === "admin" ? ["admin"] : [])].map(name => `<a href="#${name}" class="${route === name ? "active" : ""}" ${route === name ? 'aria-current="page"' : ""}>${esc(t(name))}</a>`).join("")}</nav>` : ""}
+    ${state.user ? `<nav class="nav" aria-label="${esc(t("main_navigation"))}">${["home","history","profile",...(state.user.role === "admin" ? ["admin"] : [])].map(name => `<a href="#${name}" aria-label="${esc(t(name))}" class="${route === name || name === "home" && route === "attempt" ? "active" : ""}" ${route === name ? 'aria-current="page"' : ""}>${icon(name)}<span>${esc(t(name === "admin" ? "admin_short" : name))}</span></a>`).join("")}</nav>` : ""}
     <div class="header-tools">${state.user ? `<span class="user-chip">${esc(state.user.display_name)}</span>` : ""}<label class="sr-only" for="language">${esc(t("language"))}</label>
       <select id="language"><option value="es" ${state.language === "es" ? "selected" : ""}>Español</option><option value="en" ${state.language === "en" ? "selected" : ""}>English</option></select>
-      ${state.user ? `<button id="logout" class="ghost small">${esc(t("sign_out"))}</button>` : ""}</div></div>`;
+      ${state.user ? `<button id="logout" class="ghost small" aria-label="${esc(t("sign_out"))}" title="${esc(t("sign_out"))}">${icon("logout")}<span>${esc(t("sign_out"))}</span></button>` : ""}</div></div>`;
   $("#skip-link").textContent = t("skip_main");
   $("#language").onchange = async event => {
     const language = event.target.value;
@@ -103,7 +157,7 @@ function renderHeader() {
   };
   if ($("#logout")) $("#logout").onclick = async () => {
     if (state.busy) return;
-    try { await request("/api/logout", {}); state.user = null; state.attempt = null; state.dashboard = null; state.authMode = "login"; go("home"); }
+    try { await request("/api/logout", {}); clearSession(); go("home"); }
     catch (error) { handleError(error); }
   };
   $("#footer").innerHTML = `<div class="footer-row"><div><strong>AWS Practice Local 4.0</strong><br>${esc(t("original_notice"))}</div>
@@ -121,7 +175,7 @@ function renderAuth() {
     ${register ? `<div><label for="confirm-password">${esc(t("confirm_password"))}</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></div>` : ""}
     <div id="auth-error" class="hidden callout error-box" role="alert"></div><button class="primary full" type="submit">${esc(t(register ? "create_profile" : "sign_in"))}</button></form>
     ${state.registrationOpen ? `<div class="auth-switch">${esc(t(register ? "have_profile" : "new_here"))} <button class="ghost small" id="auth-toggle">${esc(t(register ? "sign_in" : "create_profile"))}</button></div>` : `<p class="hint spaced">${esc(t("registration_closed"))}</p>`}
-    ${location.protocol !== "https:" ? `<p class="hint spaced">${esc(t("http_warning"))}</p>` : ""}</section></div>`;
+    <p class="hint spaced">${esc(t("session_idle_notice"))}</p></section></div>`;
   if ($("#auth-toggle")) $("#auth-toggle").onclick = () => { state.authMode = register ? "login" : "register"; renderAuth(); };
   $("#auth-form").onsubmit = async event => {
     event.preventDefault(); const form = event.currentTarget, button = $("button[type=submit]", form); busy(button, true);
@@ -132,8 +186,9 @@ function renderAuth() {
       if (register) body.display_name = $("#display-name").value;
       const result = await request(register ? "/api/register" : "/api/login", body);
       state.user = result.user; state.language = result.user.language; state.dashboard = null;
+      state.lastActivitySent = performance.now();
       local.set("practice-language", state.language); go("home");
-    } catch (error) { errorBox.textContent = errorText(error); errorBox.classList.remove("hidden"); }
+    } catch (error) { if (!error.discarded) { errorBox.textContent = errorText(error); errorBox.classList.remove("hidden"); } }
     finally { busy(button, false); }
   };
 }
@@ -142,15 +197,61 @@ function fallback(languages) {
 }
 async function renderHome(routeId) {
   const data = await request("/api/dashboard"); if (routeId !== state.routeId) return; state.dashboard = data;
-  main.innerHTML = `<div class="page-heading"><p class="eyebrow">${esc(t("hello", {name:state.user.display_name}))}</p><h1>${esc(t("practice_title"))}</h1><p class="muted">${esc(t("practice_subtitle"))}</p></div>
+  const preferred = state.selectedBank || local.get(`practice-bank-${state.user.id}`);
+  state.selectedBank = data.banks.find(bank => bank.id === preferred)?.id ||
+    data.banks.find(bank => bank.id === data.active?.bank_id)?.id || data.banks[0]?.id || "";
+  main.innerHTML = `<div class="page-heading catalog-heading"><p class="eyebrow">${esc(t("hello", {name:state.user.display_name}))}</p><h1>${esc(t("practice_title"))}</h1><p class="muted">${esc(t("practice_subtitle"))}</p></div>
     ${state.user.default_password ? `<div class="callout warning spaced">${esc(t("admin_default_warning"))} <a href="#profile">${esc(t("change_password"))}</a></div>` : ""}
     ${data.active ? `<section class="card active-banner row between spaced"><div><p class="eyebrow">${esc(t("active_session"))}</p><h2>${esc(text(data.active.metadata.bank_title))}</h2><p class="muted">${esc(t(data.active.kind))} · ${esc(t("one_active"))}</p></div><a class="button accent" href="#attempt/${data.active.id}">${esc(t("resume"))}</a></section>` : ""}
-    <div class="bank-grid spaced">${data.banks.map(bank => `<section class="card bank-card"><div class="bank-heading"><div class="row between"><span class="badge">${esc(bank.manifest.exam_code)}</span><span class="muted hint">${esc(t("version"))} ${esc(bank.version)} · ${bank.manifest.languages.map(language => language.toUpperCase()).join(" / ")}</span></div><h2 class="spaced">${esc(text(bank.manifest.title))}</h2><p class="muted hint">${number(bank.question_count)} ${esc(t("questions"))}</p></div>
-      <div class="metrics"><div><div class="metric-value highlight">${percent(bank.stats.average)}</div><div class="metric-label">${esc(t("average"))}</div></div><div><div class="metric-value">${number(bank.stats.completed)}</div><div class="metric-label">${esc(t("completed"))}</div></div><div><div class="metric-value">${number(bank.stats.remaining)}</div><div class="metric-label">${esc(t("remaining"))} · ${esc(t("cycle", {cycle:bank.stats.cycle}))}</div></div></div>
-      <p class="hint">${esc(bank.stats.average == null ? t("no_average") : t("average_detail", {count:bank.stats.recent_count}))}</p>
-      <div class="mode-grid">${["quiz","exam","rush"].map(kind => { const mode = bank.settings[kind]; return `<div class="mode ${kind === "rush" ? "rush-mode" : ""}"><h3>${esc(t(kind))}</h3><p class="muted">${kind === "rush" ? esc(t("rush_card", {goal:mode.question_count, time:timeText(mode.duration_seconds)})) : `${mode.question_count} ${esc(t("questions"))}<br>${timeText(mode.duration_seconds)} · ${mode.question_count - mode.unscored_count} ${esc(t("scored").toLowerCase())}`}</p>${kind === "rush" ? `<p class="hint">${esc(t("rush_rules_short"))}</p>` : ""}<button class="${kind === "quiz" ? "primary" : ""} start" data-bank="${esc(bank.id)}" data-kind="${kind}" ${data.active ? "disabled" : ""}>${esc(t("start_" + kind))}</button></div>`; }).join("")}</div>${fallback(bank.manifest.languages)}</section>`).join("")}</div>
+    ${data.banks.length ? `<div class="bank-workspace spaced"><aside class="card bank-menu"><details id="bank-menu" ${window.innerWidth > 760 ? "open" : ""}><summary><span>${esc(t("banks_menu"))}<small id="selected-bank-label"></small></span><span class="badge">${number(data.banks.length)}</span></summary><div class="bank-menu-content"><label for="bank-search">${esc(t("search_banks"))}</label><input type="search" id="bank-search" placeholder="${esc(t("search_banks_hint"))}" value="${esc(state.bankQuery)}" autocomplete="off"><p class="hint" id="bank-match-count" role="status" aria-live="polite"></p><nav id="bank-list" aria-label="${esc(t("banks_menu"))}"></nav></div></details></aside><div id="bank-detail" tabindex="-1"></div></div>` : ""}
       ${data.banks.length ? "" : `<div class="card empty"><h2>${esc(t("no_banks"))}</h2><p class="muted">${esc(t("no_banks_help"))}</p>${state.user.role === "admin" ? `<a class="button primary" href="#admin">${esc(t("import_bank"))}</a>` : ""}</div>`}
       <p class="hint spaced">${esc(t("score_notice"))}</p>`;
+  if (data.banks.length) {
+    renderBankMenu(); renderSelectedBank();
+    $("#bank-search").oninput = event => { state.bankQuery = event.target.value; renderBankMenu(); };
+    $("#bank-menu").addEventListener("toggle", event => {
+      const selected = $(".bank-menu-item.selected"), list = $("#bank-list");
+      if (event.target.open && selected) {
+        list.scrollTop += selected.getBoundingClientRect().top - list.getBoundingClientRect().top;
+      }
+    });
+  }
+}
+function renderBankMenu() {
+  const normalize = value => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const query = normalize(state.bankQuery.trim());
+  const banks = state.dashboard.banks.filter(bank => normalize(
+    `${bank.id} ${bank.manifest.exam_code} ${Object.values(bank.manifest.title).join(" ")}`).includes(query));
+  $("#bank-match-count").textContent = t("bank_match_count", {count:banks.length,total:state.dashboard.banks.length});
+  $("#bank-list").innerHTML = banks.length ? banks.map(bank => `<button class="bank-menu-item ${bank.id === state.selectedBank ? "selected" : ""}" data-bank="${esc(bank.id)}" ${bank.id === state.selectedBank ? 'aria-current="true"' : ""} aria-controls="bank-detail"><span class="row between"><span class="badge">${esc(bank.manifest.exam_code)}</span><small>${number(bank.question_count)} ${esc(t("questions"))}</small></span><span class="bank-menu-title">${esc(text(bank.manifest.title))}</span></button>`).join("") : `<div class="bank-empty"><p class="hint">${esc(t("no_matching_banks"))}</p><button id="clear-bank-search" class="small">${esc(t("clear_search"))}</button></div>`;
+  if ($("#clear-bank-search")) $("#clear-bank-search").onclick = () => {
+    state.bankQuery = ""; $("#bank-search").value = ""; renderBankMenu(); $("#bank-search").focus();
+  };
+  $$(".bank-menu-item").forEach(button => button.onclick = () => {
+    state.selectedBank = button.dataset.bank;
+    local.set(`practice-bank-${state.user.id}`, state.selectedBank);
+    renderBankMenu(); renderSelectedBank();
+    if (window.innerWidth <= 760) $("#bank-menu").open = false;
+    $("#bank-detail").focus({preventScroll:true});
+    if (window.innerWidth <= 760) $(".bank-workspace").scrollIntoView({block:"start"});
+  });
+}
+function renderSelectedBank() {
+  const data = state.dashboard, bank = data.banks.find(item => item.id === state.selectedBank);
+  if (!bank) return;
+  $("#selected-bank-label").textContent = bank.manifest.exam_code;
+  $("#bank-detail").innerHTML = `<section class="card bank-card" aria-labelledby="bank-title"><div class="bank-heading"><div class="row between"><span class="badge good">${esc(bank.manifest.exam_code)}</span><span class="hint">${number(bank.question_count)} ${esc(t("questions"))}</span></div><h2 id="bank-title">${esc(text(bank.manifest.title))}</h2><p class="muted hint">${esc(t("version"))} ${esc(bank.version)} <span aria-hidden="true">·</span> ${bank.manifest.languages.map(language => language.toUpperCase()).join(" / ")}</p></div>
+      <h3 class="section-label" id="practice-modes">${esc(t("choose_mode"))}</h3>
+      <div class="mode-grid" aria-labelledby="practice-modes">${["quiz","exam","rush"].map(kind => {
+        const mode = bank.settings[kind];
+        return `<button class="mode start ${kind === "rush" ? "rush-mode" : ""}" data-bank="${esc(bank.id)}" data-kind="${kind}" ${data.active ? "disabled" : ""}>
+          <span class="mode-icon">${icon(kind)}</span><span class="mode-content"><span class="mode-title">${esc(t(kind))}</span>
+          <span class="mode-meta">${kind === "rush" ? esc(t("rush_card", {goal:mode.question_count, time:timeText(mode.duration_seconds)})) : esc(t("format_summary", {total:mode.question_count,scored:mode.question_count-mode.unscored_count,time:timeText(mode.duration_seconds)}))}</span>
+          ${kind === "rush" ? `<span class="mode-note">${esc(t("rush_rules_short"))}</span>` : ""}<span class="mode-cta">${esc(t("start_" + kind))} ${icon("arrow")}</span></span></button>`;
+      }).join("")}</div>
+      <section class="bank-progress" aria-labelledby="bank-progress-title"><div class="row between"><h3 class="section-label" id="bank-progress-title">${esc(t("your_progress"))}</h3><span class="hint">${esc(t("cycle", {cycle:bank.stats.cycle}))}</span></div>
+      <div class="metrics"><div><div class="metric-value highlight">${percent(bank.stats.average)}</div><div class="metric-label">${esc(t("average"))}</div></div><div><div class="metric-value">${number(bank.stats.completed)}</div><div class="metric-label">${esc(t("completed"))}</div></div><div><div class="metric-value">${number(bank.stats.remaining)}</div><div class="metric-label">${esc(t("remaining_short"))}</div></div></div>
+      <p class="hint">${esc(bank.stats.average == null ? t("no_average") : t("average_detail", {count:bank.stats.recent_count}))}</p></section>${fallback(bank.manifest.languages)}</section>`;
   $$(".start").forEach(button => button.onclick = async () => {
     if (state.busy) return; state.busy = true; $$(".start").forEach(b => busy(b, true));
     try { const attempt = await request("/api/attempts", {bank_id:button.dataset.bank, kind:button.dataset.kind}); acceptAttempt(attempt); go(`attempt/${attempt.id}`); }
@@ -178,7 +279,7 @@ function renderAttempt() {
   if (attempt.status !== "active") return renderReport();
   if (attempt.kind === "rush") return renderRush();
   const q = attempt.questions[state.index];
-  main.innerHTML = `<section class="session-top"><div class="session-title"><h1>${esc(text(attempt.metadata.bank_title))}</h1><div class="muted">${esc(t(attempt.kind))} · ${esc(t("answered_count", {answered:attempt.answered,total:attempt.total}))}</div></div><div class="timer" id="timer"><small>${esc(t("time_remaining"))}</small><strong id="clock">${timeText(attempt.deadline - (Date.now() + state.skew) / 1000)}</strong></div></section>
+  main.innerHTML = `<section class="session-top"><div class="session-title"><h1 title="${esc(text(attempt.metadata.bank_title))}"><span class="session-bank-title">${esc(text(attempt.metadata.bank_title))}</span><span class="session-bank-code">${esc(attempt.metadata.exam_code)}</span></h1><div class="muted">${esc(t(attempt.kind))} · ${esc(t("answered_count", {answered:attempt.answered,total:attempt.total}))}</div></div><div class="timer" id="timer"><small>${esc(t("time_remaining"))}</small><strong id="clock">${timeText(attempt.deadline - (Date.now() + state.skew) / 1000)}</strong></div></section>
     ${fallback(attempt.metadata.languages)}
     <div class="session-layout"><section class="card question-card"><div class="row between"><span class="eyebrow">${esc(t("question_number", {number:state.index + 1,total:attempt.total}))}</span><span class="save-state" id="save-state" role="status">${esc(t(state.saveFailed ? "save_failed" : "saved"))}</span></div>
     <div class="question-prompt" tabindex="-1">${esc(text(q.prompt))}</div><span class="badge ${q.select_count > 1 ? "gold" : ""}">${esc(q.select_count === 1 ? t("select_one") : q.select_count === 2 ? t("select_two") : t("select_answers", {count:q.select_count}))}</span>
@@ -203,7 +304,7 @@ function renderAttempt() {
 function renderRush() {
   const attempt = state.attempt, rush = attempt.rush, feedback = rush.phase === "feedback";
   const q = feedback ? attempt.feedback : attempt.questions[0];
-  main.innerHTML = `<section class="session-top"><div class="session-title"><h1>${esc(text(attempt.metadata.bank_title))}</h1><div class="muted">${esc(t("rush"))} · ${esc(t("rush_round", {round:rush.round_number}))}</div></div><div class="timer" id="timer"><small>${esc(t("time_remaining"))}</small><strong id="clock">${timeText(attempt.deadline - (Date.now()+state.skew)/1000)}</strong></div></section>
+  main.innerHTML = `<section class="session-top"><div class="session-title"><h1 title="${esc(text(attempt.metadata.bank_title))}"><span class="session-bank-title">${esc(text(attempt.metadata.bank_title))}</span><span class="session-bank-code">${esc(attempt.metadata.exam_code)}</span></h1><div class="muted">${esc(t("rush"))} · ${esc(t("rush_round", {round:rush.round_number}))}</div></div><div class="timer" id="timer"><small>${esc(t("time_remaining"))}</small><strong id="clock">${timeText(attempt.deadline - (Date.now()+state.skew)/1000)}</strong></div></section>
     ${fallback(attempt.metadata.languages)}
     <section class="card rush-stats" aria-label="${esc(t("rush_progress"))}"><div><span class="metric-label">${esc(t("rush_streak"))}</span><strong>${rush.streak}/${rush.goal}</strong><progress value="${rush.streak}" max="${rush.goal}" aria-label="${esc(t("rush_streak"))}"></progress></div><div><span class="metric-label">${esc(t("score"))}</span><strong>${percent(rush.percentage)}</strong><span class="hint">${esc(t("rush_fraction", {correct:rush.correct_count,generated:rush.generated_count}))}</span></div><div><span class="metric-label">${esc(t("rush_best_streak"))}</span><strong>${rush.best_streak}</strong><span class="hint">${esc(t("rush_failures", {count:rush.failures}))}</span></div></section>
     <div class="rush-layout spaced">${feedback ? `<section class="card rush-feedback"><div class="callout error-box" role="alert"><strong>${esc(t("rush_failed_title"))}</strong><p>${esc(t("rush_failed_body", {goal:rush.goal,round:rush.round_number}))}</p></div><div class="question-prompt" tabindex="-1">${esc(text(q.prompt))}</div><div class="rush-correction"><h2>${esc(t("rush_correct_answer"))}</h2>${q.options.filter(option=>option.correct).map(option=>`<p><strong>${String.fromCharCode(65+q.options.indexOf(option))}.</strong> ${esc(text(option.text))}</p>`).join("")}<h3>${esc(t("explanation"))}</h3><p>${esc(text(q.explanation))}</p></div><details class="rush-option-detail spaced"><summary>${esc(t("rush_option_analysis"))}</summary>${reviewContent(q)}</details><div class="rush-continue spaced"><p class="hint">${esc(t("rush_clock_running"))}</p><button id="rush-continue" class="primary full">${esc(t("rush_continue"))}</button></div></section>` : `<section class="card question-card"><div class="row between"><span class="eyebrow">${esc(t("question_number", {number:rush.streak+1,total:rush.goal}))}</span><span class="save-state" id="save-state" role="status">${esc(t(state.saveFailed ? "save_failed" : "saved"))}</span></div>
@@ -240,12 +341,21 @@ async function sendRush(action) {
 }
 async function updateAnswer(change) {
   if (state.busy || !state.attempt || state.attempt.status !== "active") return;
+  const attemptId = state.attempt.id, focused = document.activeElement;
+  const focusId = focused?.id, focusAnswer = focused?.name === "answer" ? focused.value : null;
+  const scroll = {left:window.scrollX, top:window.scrollY};
   state.busy = true;
   if ($("#save-state")) $("#save-state").textContent = t("saving");
   $$(".question-card button,.question-card input,.map button,#submit-session").forEach(el => el.disabled = true);
   try { const result = await request(`/api/attempts/${state.attempt.id}/answer`, {revision:state.attempt.revision,index:state.index,...change}); state.saveFailed = false; acceptAttempt(result); }
   catch (error) { state.saveFailed = true; handleError(error); }
-  finally { state.busy = false; renderAttempt(); }
+  finally {
+    state.busy = false; renderAttempt();
+    if (state.attempt?.id === attemptId && state.attempt.status === "active" && isAttempt()) {
+      const target = focusAnswer ? $$("input[name=answer]").find(input => input.value === focusAnswer) : document.getElementById(focusId);
+      window.scrollTo(scroll); target?.focus({preventScroll:true});
+    }
+  }
 }
 function confirmDialog(title, body, callback) {
   const dialog = $("#confirm-dialog");
@@ -265,6 +375,7 @@ function submitDialog() {
   });
 }
 function tick() {
+  if (state.user && state.sessionUntil !== null && performance.now() >= state.sessionUntil) checkSession();
   if (!isAttempt() || state.attempt.status !== "active" || !$("#clock")) return;
   const remaining = state.attempt.deadline - (Date.now() + state.skew)/1000;
   $("#clock").textContent = timeText(remaining); $("#timer").classList.toggle("urgent", remaining <= 120);
@@ -432,8 +543,12 @@ async function boot(){
     state.dictionaries={en,es};state.user=session.user;state.registrationOpen=session.registration_open;
     const preferred=state.user?.language||local.get("practice-language")||(navigator.language.startsWith("es")?"es":"en");state.language=["en","es"].includes(preferred)?preferred:"es";
     window.addEventListener("hashchange",renderRoute);window.addEventListener("focus",heartbeat);
-    document.addEventListener("visibilitychange",()=>{if(!document.hidden)heartbeat();});
-    setInterval(tick,250);setInterval(heartbeat,10000);renderRoute();
+    window.addEventListener("focus",checkSession);
+    document.addEventListener("visibilitychange",()=>{if(!document.hidden){checkSession();heartbeat();}});
+    for (const name of ["pointerdown", "keydown", "wheel", "touchstart"]) {
+      document.addEventListener(name, recordActivity, {capture:true,passive:true});
+    }
+    setInterval(tick,250);setInterval(heartbeat,10000);setInterval(checkSession,15000);renderRoute();
   }catch(error){main.innerHTML=`<div class="card empty">Unable to load the local application. Reload the page after checking the server.</div>`;}
 }
 boot();

@@ -40,9 +40,29 @@ Legacy schema-v1 bank ZIPs still import without edits. RUSH defaults are 10
 questions (or bank size when smaller) and 600 seconds. Explicit RUSH settings in
 bank files use contract v2; newly exported banks and the updated authoring kit
 use that contract. App v3 cannot import contract-v2 exports. Content versions
-and the bundled `aws-clf-c02-4.0.0.zip` are independent of app versions. Existing
-installations do not automatically import a newer starter bank; use the
-administrator bank-import workflow to install content updates.
+and the bundled `aws-clf-c02-4.0.0.zip` and `aws-aif-c01-1.1.0.zip` banks are
+independent of app versions. Startup installs a previously unknown starter bank
+ID, including AI Practitioner on an existing installation that does not already
+contain it. It does not replace an existing version of the same bank ID; use the
+administrator bank-import workflow for content updates.
 
 Only local LAN connectivity is required. No migration downloads, package
 installation, cloud services or network calls are made.
+
+## HTTPS and inactivity update
+
+After installing this update, open `https://` instead of `http://`, using the
+same port. A first startup creates `data/tls/` with a unique certificate and key;
+existing complete pairs are reused. Trust the public certificate on each client
+after comparing its SHA-256 fingerprint with the server console. See README.md
+for renewal, changed addresses and custom certificates. Browser settings and
+certificate trust stores are never modified automatically.
+
+Saved profiles, passwords, banks, settings, question cycles and attempts remain
+intact. The sessions table gains a persisted activity timestamp without changing
+the storage marker. Legacy sessions use their original sign-in time and expire
+if it was at least an hour ago; signing in again restores access to saved work.
+Do not run the older application against this updated database; use your
+stopped-server backup to roll back. HTTPS is a different browser origin, so a
+previous HTTP cookie/local UI preference is not reused. Server-side progress is
+unaffected.

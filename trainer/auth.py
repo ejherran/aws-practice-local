@@ -12,6 +12,7 @@ from .errors import AppError
 
 PASSWORD_ITERATIONS = 600_000
 SESSION_SECONDS = 30 * 86400
+IDLE_SECONDS = 3600
 INITIAL_ADMIN_USERNAME = 'Admin'
 INITIAL_ADMIN_PASSWORD = 'Aws+10C41'
 COOKIE_NAME = 'practice_session'
@@ -104,13 +105,15 @@ class Access:
 
     def new_session(self, con, user_id):
         now = self.storage.clock()
-        con.execute('DELETE FROM sessions WHERE expires_at<=?', (now,))
+        con.execute('DELETE FROM sessions WHERE expires_at<=? OR last_activity<=?',
+                    (now, now - IDLE_SECONDS))
         con.execute('''DELETE FROM sessions WHERE user_id=? AND token_hash NOT IN
                     (SELECT token_hash FROM sessions WHERE user_id=?
                      ORDER BY created_at DESC,rowid DESC LIMIT 19)''', (user_id, user_id))
         token = secrets.token_urlsafe(32)
         digest = hashlib.sha256(token.encode('ascii')).hexdigest()
-        con.execute('INSERT INTO sessions VALUES(?,?,?,?)', (digest, user_id, now, now + SESSION_SECONDS))
+        con.execute('''INSERT INTO sessions(token_hash,user_id,created_at,expires_at,last_activity)
+                       VALUES(?,?,?,?,?)''', (digest, user_id, now, now + SESSION_SECONDS, now))
         return token
 
     @staticmethod
@@ -126,14 +129,39 @@ class Access:
             return None
 
     def authenticated(self, header):
+        return self.session(header)['user']
+
+    def session(self, header, *, activity=False, expected_user=None):
+        """Passive reads never extend the persisted inactivity deadline."""
+        now = self.storage.clock()
+        result = {'user': None, 'expires_at': None, 'server_now': now}
         digest = self.token_hash(header)
         if not digest:
-            return None
+            return result
         with self.storage.connection() as con:
-            row = con.execute('''SELECT u.* FROM users u JOIN sessions s ON s.user_id=u.id
-                              WHERE s.token_hash=? AND s.expires_at>?''',
-                              (digest, self.storage.clock())).fetchone()
-            return self.public(row) if row else None
+            row = con.execute('''SELECT u.*,s.expires_at,s.last_activity FROM users u
+                              JOIN sessions s ON s.user_id=u.id WHERE s.token_hash=?''',
+                              (digest,)).fetchone()
+            if not row:
+                return result
+            if now >= min(row['expires_at'], row['last_activity'] + IDLE_SECONDS):
+                con.execute('DELETE FROM sessions WHERE token_hash=?', (digest,))
+                return result
+            if expected_user is not None and row['id'] != expected_user:
+                raise AppError(409, 'profile_changed')
+            last_activity = row['last_activity']
+            if activity:
+                last_activity = max(now, last_activity)
+                con.execute('UPDATE sessions SET last_activity=? WHERE token_hash=?',
+                            (last_activity, digest))
+            return {'user': self.public(row), 'server_now': now,
+                    'expires_at': min(row['expires_at'], last_activity + IDLE_SECONDS)}
+
+    def sweep(self):
+        now = self.storage.clock()
+        with self.storage.connection() as con:
+            con.execute('DELETE FROM sessions WHERE expires_at<=? OR last_activity<=?',
+                        (now, now - IDLE_SECONDS))
 
     def register(self, username, password, display_name=None, language='es', ip='local'):
         if not self.registration_open:

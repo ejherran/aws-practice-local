@@ -124,6 +124,17 @@ Treat this as a trusted-LAN tool, not a publicly hosted service or a proctored
 exam system. Do not silently open firewall ports, create router mappings, install
 certificates, transmit telemetry or connect to external services.
 
+HTTPS is mandatory. `trainer/tls.py` owns automatic local certificate generation
+through Python's existing OpenSSL library; never add pip packages or an external
+certificate command. Generate only a missing initial identity; reuse complete
+pairs and fail closed for invalid/partial pairs. Never install certificate trust
+automatically or package private keys. Keep handshake concurrency bounded.
+
+Authentication expires after 3600 seconds without acknowledged UI interaction.
+Only the protected activity endpoint renews the persisted timestamp; background
+polling must not. Preserve the separate absolute lifetime, profile binding,
+cross-tab consistency and attempt deadlines. Test expiry with an injected clock.
+
 ## Validation before delivery
 
 Run from the repository root:

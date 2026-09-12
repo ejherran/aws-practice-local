@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 CREATE TABLE IF NOT EXISTS sessions (
  token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
- created_at REAL NOT NULL, expires_at REAL NOT NULL
+ created_at REAL NOT NULL, expires_at REAL NOT NULL, last_activity REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS session_owner ON sessions(user_id);
 CREATE TABLE IF NOT EXISTS bank_versions (
@@ -64,6 +64,11 @@ class Storage:
             for statement in SCHEMA.split(';'):
                 if statement.strip():
                     con.execute(statement)
+            # Old sessions have no reliable activity timestamp beyond sign-in.
+            columns = {row['name'] for row in con.execute('PRAGMA table_info(sessions)')}
+            if 'last_activity' not in columns:
+                con.execute('ALTER TABLE sessions ADD COLUMN last_activity REAL')
+                con.execute('UPDATE sessions SET last_activity=created_at')
             # Version 4 adds RUSH snapshots using existing JSON columns.
             # The marker prevents older engines from misinterpreting these attempts.
             con.execute('PRAGMA user_version=4')

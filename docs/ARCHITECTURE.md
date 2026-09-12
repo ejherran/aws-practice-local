@@ -6,9 +6,9 @@
 Phone / desktop browser
   Native UI + local EN/ES dictionaries
            |
-           | Same-origin HTTP(S), authenticated cookie, profile binding
+           | Same-origin HTTPS, secure cookie, profile binding
            v
-Python standard-library HTTP adapter
+Python standard-library HTTPS adapter
   Access checks / request limits / localized error codes
            |
            +-- Access: profiles, password derivation, sessions
@@ -35,7 +35,7 @@ Full JSON content is stored in `bank_versions`, not compiled into Python or JS.
 | Table | Scope and role |
 |---|---|
 | `users` | Local profile, role, language and password derivation data. |
-| `sessions` | Hashed token with user and expiration. |
+| `sessions` | Hashed token, user, absolute expiry and persisted last activity. |
 | `bank_versions` | Immutable `(bank_id, version)` content and normalized content digest. |
 | `banks` | Current version pointer, enabled flag and current format settings. |
 | `decks` | Remaining question IDs and cycle for `(user, bank, version)`. |
@@ -46,6 +46,19 @@ SQLite foreign keys and explicit transactions preserve relationships. An
 application lock serializes access inside the server process. `BEGIN IMMEDIATE`
 and SQLite locking also protect against concurrent local tools. A partial unique
 index enforces at most one active attempt per user. Backup with the server stopped.
+
+`trainer/tls.py` creates the initial private local identity through the OpenSSL
+library linked to CPython, using stdlib ctypes for the native API. It loads and
+validates the certificate before the listener opens. Each TLS handshake runs in
+a bounded worker with a timeout, so an unfinished handshake cannot block accept.
+There is no plaintext listener, downgrade or automatic certificate trust.
+
+Authentication reads do not count as activity. `POST /api/activity` requires the
+same origin and expected-profile checks as other mutations, rechecks expiry
+inside the transaction, and updates only that cookie's session. The one-hour
+idle deadline and 30-day absolute lifetime are both enforced by Access. Existing
+v3/v4 sessions gain `last_activity` initialized from their sign-in timestamp.
+Attempt deadlines and authentication deadlines remain independent.
 
 ## Session creation
 

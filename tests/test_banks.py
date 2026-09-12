@@ -28,7 +28,7 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(settings['quiz']['duration_seconds'], 300)
         self.assertEqual(len(digest), 64)
 
-    def test_bundled_bank_all_bilingual_content(self):
+    def test_bundled_cloud_practitioner_bank(self):
         m, q, s, _ = read_archive((ROOT / 'banks/aws-clf-c02-4.0.0.zip').read_bytes())
         self.assertEqual(m['version'], '4.0.0')
         self.assertEqual(m['schema_version'], 2)
@@ -43,6 +43,34 @@ class ContractTests(unittest.TestCase):
             if question['select_count'] > 1:
                 self.assertIn('TWO', question['prompt']['en'])
                 self.assertIn('DOS', question['prompt']['es'])
+
+    def test_bundled_ai_practitioner_bank(self):
+        m, q, s, _ = read_archive((ROOT / 'banks/aws-aif-c01-1.1.0.zip').read_bytes())
+        self.assertEqual(m['bank_id'], 'aws-aif-c01')
+        self.assertEqual(m['version'], '1.1.0')
+        self.assertEqual(m['schema_version'], 2)
+        self.assertEqual(m['languages'], ['en', 'es'])
+        self.assertEqual(len(q), 300)
+        self.assertEqual(sum(len(x['options']) for x in q), 1266)
+        self.assertEqual(sum(x['select_count'] == 1 for x in q), 240)
+        self.assertEqual(sum(x['select_count'] == 2 for x in q), 54)
+        self.assertEqual(sum(x['select_count'] == 3 for x in q), 6)
+        self.assertEqual(
+            {domain: sum(x['domain_id'] == domain for x in q)
+             for domain in ('1', '2', '3', '4', '5')},
+            {'1': 60, '2': 72, '3': 84, '4': 42, '5': 42},
+        )
+        self.assertEqual(len({x['task_id'] for x in q}), 14)
+        self.assertTrue(all(x['references'] for x in q))
+        self.assertEqual(s['quiz']['duration_seconds'], 831)
+        self.assertEqual(s['exam']['unscored_count'], 15)
+        self.assertEqual(s['rush'], {'question_count': 10, 'duration_seconds': 600})
+        number_words = {2: ('TWO', 'DOS'), 3: ('THREE', 'TRES')}
+        for question in q:
+            if question['select_count'] > 1:
+                en, es = number_words[question['select_count']]
+                self.assertIn(en, question['prompt']['en'].upper())
+                self.assertIn(es, question['prompt']['es'].upper())
 
     def test_missing_translation(self):
         del self.questions[0]['options'][0]['explanation']['en']

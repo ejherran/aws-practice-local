@@ -29,6 +29,14 @@ class EngineTests(Fixture):
         r = self.finish(a)['result']
         self.assertEqual((r['scored_total'], r['unscored_total']), (50, 15))
 
+    def test_ai_practitioner_real_length(self):
+        self.banks.import_archive((ROOT / 'banks/aws-aif-c01-1.1.0.zip').read_bytes(), 1)
+        a = self.engine.create(2, 'aws-aif-c01', 'exam')
+        self.assertEqual(a['total'], 65)
+        self.assertEqual(a['duration'], 5400)
+        r = self.finish(a)['result']
+        self.assertEqual((r['scored_total'], r['unscored_total']), (50, 15))
+
     def test_active_response_hides_answer_key_and_unscored_items(self):
         a = self.engine.create(2, 'test-cert', 'exam')
         for q in a['questions']:
